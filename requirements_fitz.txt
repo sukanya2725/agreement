@@ -1,0 +1,6 @@
+streamlit
+pytesseract
+pymupdf
+gtts
+deep-translator
+Pillow
