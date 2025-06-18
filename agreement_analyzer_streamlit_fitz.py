@@ -1,22 +1,16 @@
-# agreement_analyzer_streamlit.py (using PyMuPDF instead of pdf2image)
-
 import streamlit as st
 import pytesseract
 import fitz  # PyMuPDF
 from gtts import gTTS
 import os
 from deep_translator import GoogleTranslator
-from PIL import Image
 import tempfile
 import base64
 
-# Streamlit Title
+st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 st.title("📄 Agreement Analyzer with Translation and Audio")
 
-# Upload PDF
 uploaded_file = st.file_uploader("Upload a PDF Document", type=["pdf"])
-
-# Language Selection
 lang = st.selectbox("Select output language", ["English", "Marathi"])
 
 if uploaded_file:
@@ -24,45 +18,51 @@ if uploaded_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
 
-    # Extract text using PyMuPDF
-    doc = fitz.open(pdf_path)
-    extracted_text = ""
     st.info("🔍 Extracting text from PDF...")
+    try:
+        doc = fitz.open(pdf_path)
+        extracted_text = ""
+        for page_num, page in enumerate(doc):
+            text = page.get_text()
+            extracted_text += f"\n\n--- Page {page_num+1} ---\n\n{text}"
+    except Exception as e:
+        st.error("❌ Failed to extract text from PDF.")
+        st.exception(e)
+        st.stop()
 
-    for page_num, page in enumerate(doc):
-        text = page.get_text()
-        extracted_text += f"\n\n--- Page {page_num+1} ---\n\n{text}"
-
-    # Display Extracted Text
     st.subheader("📑 Extracted Text")
     st.text_area("OCR Output", extracted_text, height=300)
 
-    # Translate if required
     if lang == "Marathi":
         st.info("🔄 Translating to Marathi...")
-        translated = GoogleTranslator(source='auto', target='mr').translate(extracted_text)
+        try:
+            translated = GoogleTranslator(source='auto', target='mr').translate(extracted_text)
+        except Exception as e:
+            st.error("❌ Marathi translation failed.")
+            st.exception(e)
+            translated = extracted_text
         final_text = translated
-        st.subheader("🈯 Translated Text")
+        st.subheader("🈯 Marathi Summary")
         st.text_area("Translated Output", final_text, height=300)
     else:
         final_text = extracted_text
 
-    # Generate and play audio
     st.subheader("🔊 Listen to the Text")
-    tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
-    audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
-    tts.save(audio_path)
-
-    # Load and embed audio player
-    with open(audio_path, "rb") as audio_file:
-        audio_bytes = audio_file.read()
-        b64 = base64.b64encode(audio_bytes).decode()
-        audio_html = f"""
-            <audio controls>
-                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                Your browser does not support the audio element.
-            </audio>
-        """
-        st.markdown(audio_html, unsafe_allow_html=True)
-
-    st.success("✅ Done! You can listen or copy the output.")
+    try:
+        tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
+        audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
+        tts.save(audio_path)
+        with open(audio_path, "rb") as audio_file:
+            audio_bytes = audio_file.read()
+            b64 = base64.b64encode(audio_bytes).decode()
+            audio_html = f"""
+                <audio controls>
+                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                    Your browser does not support the audio element.
+                </audio>
+            """
+            st.markdown(audio_html, unsafe_allow_html=True)
+        st.success("✅ Audio generated successfully!")
+    except Exception as e:
+        st.error("❌ Failed to generate audio.")
+        st.exception(e)
