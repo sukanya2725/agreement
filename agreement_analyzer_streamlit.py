@@ -5,8 +5,7 @@ from pdf2image import convert_from_path
 import pytesseract
 from gtts import gTTS
 import os
-from googletrans import Translator
-from PIL import Image
+from deep_translator import GoogleTranslatorfrom PIL import Image
 import tempfile
 import base64
 
@@ -42,7 +41,7 @@ if uploaded_file:
     if lang == "Marathi":
         st.info("🔄 Translating to Marathi...")
         translator = Translator()
-        translated = translator.translate(extracted_text, src='en', dest='mr')
+        translated = GoogleTranslator(source='auto', target='mr').translate(text)
         final_text = translated.text
         st.subheader("🈯 Translated Text")
         st.text_area("Translated Output", final_text, height=300)
