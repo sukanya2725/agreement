@@ -5,7 +5,8 @@ from pdf2image import convert_from_path
 import pytesseract
 from gtts import gTTS
 import os
-from deep_translator import GoogleTranslatorfrom PIL import Image
+from deep_translator import GoogleTranslator
+from PIL import Image
 import tempfile
 import base64
 
