@@ -12,11 +12,8 @@ import textwrap
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
 st.markdown("""
-<div style="background-color:#003366;padding:15px;border-radius:10px">
-<h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1>
-</div>
-""", unsafe_allow_html=True)
 
+<div style="background-color:#003366;padding:15px;border-radius:10px"> <h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1> </div> """, unsafe_allow_html=True)
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
 
@@ -104,20 +101,10 @@ if included:
 # Display Summary
 st.subheader("📑 Extracted Summary")
 st.markdown(f"""
-<div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
-<p><b>📌 Title of Project:</b> {textwrap.fill(title, 100) if title else "Not specified"}</p>
-<p><b>📅 Agreement Date:</b> {date}</p>
-<p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
-<p><b>💰 Amount:</b> {amount}</p>
-<p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
-<p><b>⏱ Duration:</b> {duration}</p>
-<br><b>🧾 Legal Clauses:</b><br>
-{"<br>".join(clause_results)}
-<br><br><b>🧠 Summary Paragraph:</b><br>
-{textwrap.fill(paragraph, 100)}
-</div>
-""", unsafe_allow_html=True)
-
+<div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px"> <p><b>📌 Title of Project:</b> {textwrap.fill(title, 100) if title else "Not specified"}</p> <p><b>📅 Agreement Date:</b> {date}</p> <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p> <p><b>💰 Amount:</b> {amount}</p> <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p> <p><b>⏱ Duration:</b> {duration}</p> <br><b>🧾 Legal Clauses:</b><br> {"<br>".join(clause_results)} <br><br><b>🧠 Summary Paragraph:</b><br> {textwrap.fill(paragraph, 100)} </div> """, unsafe_allow_html=True)
+php
+Copy
+Edit
 # Translation
 if lang == "Marathi":
     st.info("🌐 Translating to Marathi...")
