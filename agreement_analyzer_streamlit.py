@@ -1,6 +1,5 @@
 import streamlit as st
 import pymupdf as fitz  # ✅ Safe and guaranteed to load PyMuPDF
-  # from pymupdf
 from gtts import gTTS
 import os
 from deep_translator import GoogleTranslator
@@ -61,12 +60,12 @@ if uploaded_file:
 
     summary = f"""
 📄 Agreement Summary:
-- 📌 Title of Project: {title}
-- 📅 Agreement Date: {date}
-- 👥 Parties Involved: {parties}
-- 💰 Amount: ₹{amount}
-- 📦 Scope of Work: {scope}
-- ⏱ Duration: {duration}
+📌 Title of Project – {title}
+📅 Agreement Date – {date}
+👥 Parties Involved – {parties}
+💰 Amount – ₹{amount}
+📦 Scope of Work – {scope}
+⏱ Duration – {duration}
 
 🧾 Legal Clauses:
 {chr(10).join(clause_results)}
