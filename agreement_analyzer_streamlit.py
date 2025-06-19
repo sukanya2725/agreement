@@ -40,7 +40,7 @@ if uploaded_file:
     def smart_search(text, keywords):
         text = text.lower().replace('\n', ' ')
         best_score = 0
-        best_match = "Not found"
+        best_match = "Not specified"
         for keyword in keywords:
             for sentence in text.split('.'):
                 score = fuzz.partial_ratio(keyword.lower(), sentence.strip())
@@ -51,7 +51,7 @@ if uploaded_file:
 
     # Field Extraction
     title_match = re.search(r'(project\s*(name|title)|subject|work of|name of work)[:\-]?\s*(.*?)(\.|\n|$)', text, re.IGNORECASE)
-    title = title_match.group(3).strip() if title_match else smart_search(text, ["project", "work of", "tender"])[:100]
+    title = title_match.group(3).strip() if title_match else smart_search(text, ["project", "work of", "tender"])
 
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
@@ -59,11 +59,11 @@ if uploaded_file:
     amount_match = re.search(r'(₹|rs\.?)\s*([\d,]+)', text.lower())
     amount = f"₹{amount_match.group(2)}" if amount_match else "Not specified"
 
-    parties_match = re.search(r'(between.*?solapur municipal.*?\n.*?commissioner.*?\n.*?smc.*?)\n', text, re.IGNORECASE | re.DOTALL)
+    parties_match = re.search(r'(between.*?solapur municipal.*?commissioner.*?smc.*?)\n', text, re.IGNORECASE | re.DOTALL)
     parties = parties_match.group(1).strip().replace('\n', ' ') if parties_match else "Not specified"
 
     scope_line = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
-    scope = scope_line.strip() if scope_line != "Not found" else "Not specified"
+    scope = scope_line.strip() if scope_line != "Not specified" else "Not specified"
 
     duration_match = re.search(r'(within\s+\d+\s+(calendar\s+)?months)', text.lower())
     duration = duration_match.group(1) if duration_match else smart_search(text, ["completion", "calendar months", "time period"])
@@ -81,7 +81,7 @@ if uploaded_file:
     clause_results = []
     for name, keywords in clauses.items():
         found = smart_search(text, keywords)
-        clause_results.append(f"✅ {name}" if found != "Not found" else f"❌ {name}")
+        clause_results.append(f"✅ {name}" if found != "Not specified" else f"❌ {name}")
 
     # Summary Paragraph
     paragraph = f"This agreement"
@@ -102,7 +102,7 @@ if uploaded_file:
     full_summary = f"""
 📄 Agreement Summary:
 
-📌 **Title of Project** – {title}
+📌 **Title of Project** – {title if title else "Not specified"}
 📅 **Agreement Date** – {date}
 👥 **Parties Involved** – {parties}
 💰 **Amount** – {amount}
@@ -156,7 +156,15 @@ if uploaded_file:
 
 
 
+       
 
+   
+   
+       
+
+       
+       
+           
       
 
     
