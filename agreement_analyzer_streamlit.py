@@ -8,6 +8,10 @@ import tempfile
 import base64
 from rapidfuzz import fuzz
 import textwrap
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 st.markdown("""
@@ -15,6 +19,28 @@ st.markdown("""
 <h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1>
 </div>
 """, unsafe_allow_html=True)
+
+# Define a function to check if Tesseract is installed and available
+def check_tesseract_availability():
+    try:
+        # PyMuPDF's OCR uses the TESSDATA_PREFIX environment variable or tries default paths
+        # A simple check could be to try to open a dummy pixmap with OCR
+        dummy_pix = fitz.Pixmap(fitz.csRGB, (0,0,1,1), (255,255,255))
+        _ = dummy_pix.pdfocr_tobytes(language='eng') # Try a minimal OCR operation
+        return True
+    except Exception as e:
+        logging.warning(f"Tesseract or its language data not found or misconfigured for PyMuPDF OCR: {e}")
+        return False
+
+# Initialize Tesseract availability check once
+TESSERACT_AVAILABLE = check_tesseract_availability()
+if not TESSERACT_AVAILABLE:
+    st.warning("⚠️ **Tesseract OCR engine not found or not correctly configured.**\n"
+               "   Scanned PDF agreements will not be processed correctly.\n"
+               "   Please install Tesseract OCR and ensure `TESSDATA_PREFIX` is set if needed.\n"
+               "   (e.g., `sudo apt-get install tesseract-ocr tesseract-ocr-eng` on Linux, "
+               "   or download installer for Windows and add to PATH/set TESSDATA_PREFIX).")
+
 
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
@@ -25,15 +51,44 @@ if uploaded_file:
         pdf_path = tmp_file.name
 
     st.markdown("<hr>", unsafe_allow_html=True)
-    st.info("🔍 Extracting and analyzing text...")
+    st.info("🔍 Extracting and analyzing text (using OCR for scanned documents if needed)...")
 
     try:
         doc = fitz.open(pdf_path)
-        # Extract text page by page and clean it
-        text_pages = [page.get_text().replace('\n', ' ').strip() for page in doc]
-        text = " ".join(text_pages)
-        # Normalize multiple spaces to a single space
-        text = re.sub(r'\s+', ' ', text).strip()
+        full_text_content = []
+
+        for page_num in range(doc.page_count):
+            page = doc.load_page(page_num)
+            page_text = page.get_text("text") # Try extracting text directly
+
+            # Simple check if text is very sparse, indicating a scanned page
+            # You might need to adjust the threshold (e.g., len(page_text) < 50 for a full page)
+            if len(page_text.strip()) < 100 and TESSERACT_AVAILABLE: # If less than 100 characters, try OCR
+                logging.info(f"Page {page_num+1} seems sparse, attempting OCR.")
+                try:
+                    # Render page to high-res pixmap for better OCR
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # Use a higher resolution for OCR
+                    ocr_text_page = fitz.open("pdf", pix.pdfocr_tobytes(language="eng"))
+                    ocr_text = ocr_text_page[0].get_text("text")
+                    if len(ocr_text.strip()) > len(page_text.strip()): # Use OCR text if it's better
+                        page_text = ocr_text
+                        logging.info(f"OCR successfully extracted more text for page {page_num+1}.")
+                    else:
+                        logging.info(f"OCR for page {page_num+1} did not yield significantly more text.")
+                except Exception as ocr_e:
+                    logging.error(f"Error during OCR for page {page_num+1}: {ocr_e}")
+                    st.warning(f"❌ Could not perform OCR on page {page_num+1}. Text extraction might be incomplete.")
+
+            full_text_content.append(page_text.replace('\n', ' ').strip())
+
+        text = " ".join(full_text_content)
+        text = re.sub(r'\s+', ' ', text).strip() # Normalize spaces
+
+        # --- DIAGNOSTIC STEP: SHOW RAW EXTRACTED TEXT ---
+        st.subheader("🕵️‍♂️ Raw Extracted Text (for debugging)")
+        st.text_area("Full PDF Text", text, height=500)
+        st.warning("Please copy a relevant section of this text (especially around Project Name, Parties, Amount, Scope, Duration) and share it if you need further help debugging the regex patterns.")
+        # --- END DIAGNOSTIC STEP ---
 
     except Exception as e:
         st.error("❌ Failed to extract text from PDF.")
@@ -46,22 +101,21 @@ if uploaded_file:
 
         # Split text into larger chunks that might contain full phrases/sentences,
         # using more generic delimiters like multiple newlines, or a very long stretch of text.
-        segments = re.split(r'(?<=[.!?])\s+|\n{2,}', text_content) # Split by sentence end or double newline
+        # This is crucial for maintaining context for fuzzy matching
+        segments = re.split(r'(?<=[.!?])\s+|\n{2,}', text_content)
 
         for keyword in keywords:
             keyword_lower = keyword.lower()
             for segment in segments:
                 segment_lower = segment.strip().lower()
 
-                # Prioritize exact keyword match within a segment for higher confidence
                 if keyword_lower in segment_lower:
                     score = 100
                 else:
                     score = fuzz.partial_ratio(keyword_lower, segment_lower)
 
-                if score > best_score and score >= 70: # Slightly adjusted threshold
+                if score > best_score and score >= 70: # Score threshold to consider a match
                     best_score = score
-                    # Try to capture more context around the keyword
                     match_start = segment_lower.find(keyword_lower)
                     if match_start != -1:
                         # Extract a snippet around the keyword
@@ -69,7 +123,8 @@ if uploaded_file:
                         context_end = min(len(segment), match_start + len(keyword) + search_window) # Forward more
                         extracted_snippet = segment[context_start:context_end].strip()
 
-                        # Ensure the extracted snippet ends reasonably (e.g., before next major heading or very short phrase)
+                        # Basic cleaning: remove trailing sentence fragments that clearly start new ideas
+                        extracted_snippet = re.sub(r'\s*\b(?:and|but|or|the|a|an|with|for)\s+.*$', '', extracted_snippet, flags=re.IGNORECASE)
                         best_match = extracted_snippet
                     else:
                         best_match = segment.strip() # Fallback to whole segment if index not found
@@ -79,7 +134,7 @@ if uploaded_file:
     # --- Targeted Extraction for Project Name ---
     project_name = "Not specified"
     # Pattern 1: AGREEMENT NAME OF PROJECT: ...
-    project_name_match_1 = re.search(r'AGREEMENT NAME OF PROJECT:\s*(.*?)(?:\n|The Agreement is entered|Between the)', text, re.IGNORECASE | re.DOTALL)
+    project_name_match_1 = re.search(r'AGREEMENT NAME OF PROJECT:\s*(.*?)(?:\n|The Agreement is entered|Between the|This Agreement|Whereas)', text, re.IGNORECASE | re.DOTALL)
     if project_name_match_1:
         project_name = project_name_match_1.group(1).strip()
         # Clean up common trailing words if they are part of the next sentence start
@@ -91,7 +146,7 @@ if uploaded_file:
 
     if project_name == "Not specified":
         # Pattern 2: PROJECT TITLE: / NAME OF WORK: / SUBJECT: ... (more generic)
-        project_name_match_2 = re.search(r'(?:PROJECT TITLE|NAME OF WORK|SUBJECT|TENDER FOR)[:\s]*(.*?)(?:\n|\.|$)', text, re.IGNORECASE | re.DOTALL)
+        project_name_match_2 = re.search(r'(?:PROJECT TITLE|NAME OF WORK|SUBJECT|TENDER FOR|AGREEMENT FOR)[:\s]*(.*?)(?:\n|\.|$|The Agreement is entered|Between the|This Agreement|Whereas)', text, re.IGNORECASE | re.DOTALL)
         if project_name_match_2:
             project_name = project_name_match_2.group(1).strip()
             # Further refine, sometimes names can be on a single line
@@ -103,27 +158,31 @@ if uploaded_file:
          project_name_keywords = [
             "name of work", "project title", "work of", "tender for", "project name",
             "agreement name of project", "subject of work", "concerning",
-            "improvement & construction of" # Added a very specific keyword from your example
+            "improvement & construction of", "agreement for" # Added more generic keywords
         ]
          project_name = smart_search(text, project_name_keywords, search_window=150)
-         if project_name.lower().startswith("agreement name of project"): # Clean if smart search picks up the lead-in
-             project_name = re.sub(r'agreement name of project[:\s]*', '', project_name, flags=re.IGNORECASE).strip()
+         if project_name.lower().startswith("agreement name of project") or project_name.lower().startswith("agreement for"): # Clean if smart search picks up the lead-in
+             project_name = re.sub(r'(agreement name of project|agreement for)[:\s]*', '', project_name, flags=re.IGNORECASE).strip()
+    
+    # Final cleanup of project name
+    project_name = re.sub(r'\s*\(hereinafter referred to as[\s\S]*?\)\s*', '', project_name, flags=re.IGNORECASE).strip()
+    project_name = re.sub(r'^\W+', '', project_name).strip() # Remove any leading non-word characters
 
 
     # --- Targeted Extraction for Scope of Work ---
     scope = "Not specified"
     # Pattern 1: Look for "scope of work" or similar phrases followed by a description
-    scope_match_1 = re.search(r'(?:scope of work|the work consists of|description of work|nature of work)[:\s]*(.*?)(?:(?=\n\n)|(?=The contractor shall complete)|(?=Article \d)|(?=Clause \d)|(?=Term of)|(?=duration of work))', text, re.IGNORECASE | re.DOTALL)
+    scope_match_1 = re.search(r'(?:scope of work|the work consists of|description of work|nature of work|details of work)[:\s]*(.*?)(?:(?=\n\n)|(?=The contractor shall complete)|(?=Article \d)|(?=Clause \d)|(?=Term of)|(?=duration of work)|(?=schedule of work)|(?=period of completion)|(?=terms and conditions)|(?=consideration for the work))', text, re.IGNORECASE | re.DOTALL)
     if scope_match_1:
         scope = scope_match_1.group(1).strip()
         # Clean up any leading punctuation or keywords that snuck in
-        scope = re.sub(r'^(is|are|details|following|as follows)\s*[:.]?\s*', '', scope, flags=re.IGNORECASE).strip()
+        scope = re.sub(r'^(is|are|details|following|as follows|the following)\s*[:.]?\s*', '', scope, flags=re.IGNORECASE).strip()
         if scope.endswith('.'): scope = scope[:-1].strip()
 
     if scope == "Not specified":
         # Pattern 2: Sometimes the scope is just what the project name is about if not explicitly stated
         # If project name has "Improvement & Construction of..." it implies scope
-        if "improvement & construction of" in project_name.lower() and "storm water drains" in project_name.lower():
+        if "improvement & construction of" in project_name.lower():
             # If project name IS the scope, assign it and refine
             scope = project_name.strip()
             # Try to cut off subsequent irrelevant text if the project name captured too much
@@ -135,66 +194,73 @@ if uploaded_file:
         scope_keywords = [
             "scope of work", "project includes", "the work includes", "responsibilities include",
             "construction and improvement", "nature of work", "description of work",
-            "for the work of", "carrying out the work of",
-            "improvement & construction of storm water drains" # Very specific from your text
+            "for the work of", "carrying out the work of", "details of work",
+            "improvement & construction of storm water drains", # Very specific from your text
+            "provision of facilities for", "execution of work", "completion of"
         ]
         scope = smart_search(text, scope_keywords, search_window=250) # Larger window for scope
-        if scope.lower().startswith("agreement name of project"): # Clean if smart search picks up the lead-in
-            scope = re.sub(r'agreement name of project[:\s]*', '', scope, flags=re.IGNORECASE).strip()
+        if scope.lower().startswith("agreement name of project") or scope.lower().startswith("agreement for"): # Clean if smart search picks up the lead-in
+            scope = re.sub(r'(agreement name of project|agreement for)[:\s]*', '', scope, flags=re.IGNORECASE).strip()
+    
+    # Final cleanup of scope
+    scope = re.sub(r'^\W+', '', scope).strip() # Remove any leading non-word characters
 
 
     # --- Other Extractions ---
-    date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
-    date = date_match.group(0) if date_match else "Not specified"
+    date_match = re.search(r'(?:dated|on)\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b)', text, re.IGNORECASE)
+    date = date_match.group(1) if date_match else "Not specified"
 
-    amount_sentence = smart_search(text, ["contract value", "final payable amount", "total amount", "estimated cost", "sum of rupees", "rupees"], search_window=100)
+    amount_sentence = smart_search(text, ["contract value", "final payable amount", "total amount", "estimated cost", "sum of rupees", "rupees", "lakh", "crore", "total consideration"], search_window=100)
     amount = "Not specified"
     if "not specified" not in amount_sentence.lower():
-        # Try to find a clear amount string within the matched sentence
-        # Added a specific pattern for 'ten lakh'
-        amt_match = re.search(r'(?:(?:[Rr][Ss]\.?|₹)\s*[\d,]+(?:\.\d{1,2})?|[\d,]+\s*(?:lakh|crore|million|billion)\s*(?:rupees)?|ten lakh)', amount_sentence, re.IGNORECASE)
+        # Enhanced regex to capture more amount variations, including words and combinations
+        amt_match = re.search(r'(?:(?:[Rr][Ss]\.?|₹)\s*[\d,\.]+|[\d,\.]+\s*(?:lakhs?|crores?|millions?|billions?)\s*(?:rupees)?|one|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|lakh|crore)(?:\s+and\s+(?:(?:[Rr][Ss]\.?|₹)?\s*[\d,\.]+))?', amount_sentence, re.IGNORECASE)
         if amt_match:
-            amount = amt_match.group(0).upper()
+            amount = amt_match.group(0).upper().strip()
         else:
-            # Fallback if specific currency pattern not found but a number is there
-            num_match = re.search(r'[\d,]+(?:\.\d{1,2})?', amount_sentence)
+            num_match = re.search(r'[\d,\.]+(?:\.\d{1,2})?', amount_sentence)
             if num_match:
-                amount = num_match.group(0) # Just the number for now
+                amount = num_match.group(0)
             else:
-                amount = amount_sentence # Keep the whole sentence if no number found, better than 'Not specified'
+                amount = amount_sentence
 
     parties = "Not specified"
-    # The Parties Involved text provided is very long, a more specific regex is needed
-    parties_match = re.search(r'between the\s*(.*?)(?:of the FIRST PART AND M/s|$)', text, re.IGNORECASE | re.DOTALL)
+    # Parties extraction needs to be highly flexible. Let's try to capture names after "between" and before "witnesseth" or "whereas"
+    parties_match = re.search(r'between\s+(.*?)(?:(?:hereinafter)?\s+referred to as the.*?PART)?\s+and\s+(.*?)(?:(?:hereinafter)?\s+referred to as the.*?PART)?(?:,\s*witnesseth|,\s*whereas|\.)', text, re.IGNORECASE | re.DOTALL)
     if parties_match:
-        # Capture the part before "of the FIRST PART AND M/s"
-        captured_text = parties_match.group(1).strip()
-        # Extract the Municipal Corporation part
-        smc_match = re.search(r'Solapur Municipal Corporation(?:.*?)(?=, R/o office)', captured_text, re.IGNORECASE)
-        smc_name = smc_match.group(0).strip() if smc_match else "Solapur Municipal Corporation"
-        parties = f"{smc_name} and a Contractor (M/s...)" # Generic for the second party for now
+        party1 = parties_match.group(1).strip()
+        party2 = parties_match.group(2).strip()
+        
+        # Clean up common legal boilerplate from party names
+        party1 = re.sub(r'\s*\(herein(?:after)? referred to as the.*?part\)\s*', '', party1, flags=re.IGNORECASE).strip()
+        party2 = re.sub(r'\s*\(herein(?:after)? referred to as the.*?part\)\s*', '', party2, flags=re.IGNORECASE).strip()
+
+        # Attempt to make party names more concise if they contain addresses or very long descriptions
+        party1 = re.split(r'(?:,\s*(?:a company|a corporation|an individual|having its registered office|residing at|of))', party1, 1, flags=re.IGNORECASE)[0].strip()
+        party2 = re.split(r'(?:,\s*(?:a company|a corporation|an individual|having its registered office|residing at|of))', party2, 1, flags=re.IGNORECASE)[0].strip()
+
+        parties = f"{party1} and {party2}"
     else: # Fallback to smart_search if specific regex fails
-        parties = smart_search(text, ["between", "municipal corporation", "contractor", "agreement signed", "entered into by", "parties involved"])
-        if parties.lower().startswith("agreement name of project"): # Clean if smart search picks up the lead-in
-            parties = re.sub(r'agreement name of project[:\s]*', '', parties, flags=re.IGNORECASE).strip()
+        parties = smart_search(text, ["between", "municipal corporation", "contractor", "agreement signed", "entered into by", "parties involved", "first part", "second part"])
+        if parties.lower().startswith("agreement name of project") or parties.lower().startswith("agreement for"): # Clean if smart search picks up the lead-in
+            parties = re.sub(r'(agreement name of project|agreement for)[:\s]*', '', parties, flags=re.IGNORECASE).strip()
 
 
-    duration = smart_search(text, ["within", "calendar months", "construction period", "project completion time", "period of completion", "complete the work within"])
+    duration = smart_search(text, ["within", "calendar months", "construction period", "project completion time", "period of completion", "complete the work within", "duration of this agreement"], search_window=100)
 
 
-    # Clause search (unchanged, as it seems to be working reasonably well)
     clauses = {
-        "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
-        "Termination": ["termination", "cancelled", "terminate"],
-        "Dispute Resolution": ["arbitration", "dispute", "resolved", "decision of commissioner", "disputes shall be settled"],
-        "Jurisdiction": ["jurisdiction", "governing law", "court", "legal"],
-        "Force Majeure": ["force majeure", "natural events", "act of god", "unforeseen"],
-        "Signatures": ["signed by", "signature", "authorized signatory"]
+        "Confidentiality": ["confidentiality", "non-disclosure", "nda", "secrecy"],
+        "Termination": ["termination", "cancelled", "terminate", "expiration", "end of agreement"],
+        "Dispute Resolution": ["arbitration", "dispute", "resolved", "decision of commissioner", "disputes shall be settled", "court of law", "jurisdiction", "legal proceedings"],
+        "Jurisdiction": ["jurisdiction", "governing law", "court", "legal", "applicable law", "laws of india"],
+        "Force Majeure": ["force majeure", "natural events", "act of god", "unforeseen circumstances", "beyond control"],
+        "Signatures": ["signed by", "signature", "authorized signatory", "witnesses", "party of the first part", "party of the second part"]
     }
 
     clause_results = []
     for name, keywords in clauses.items():
-        found = smart_search(text, keywords)
+        found = smart_search(text, keywords, search_window=200) # Increased search window for clauses
         clause_results.append(f"✅ {name}" if found != "Not specified" else f"❌ {name}")
 
     # Summary Paragraph
