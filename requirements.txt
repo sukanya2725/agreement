@@ -1,6 +1,6 @@
 streamlit
 pytesseract
-pdf2image
+pymupdf
 gtts
 deep-translator
 Pillow
