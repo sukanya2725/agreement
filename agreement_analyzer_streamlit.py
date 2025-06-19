@@ -20,6 +20,7 @@ uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
 
 if uploaded_file:
+    # Use 4 spaces for indentation consistently
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
@@ -38,7 +39,7 @@ if uploaded_file:
     except Exception as e:
         st.error("❌ Failed to extract text from PDF.")
         st.exception(e)
-        st.stop()
+        st.stop() # Ensure this is also correctly indented
 
     def smart_search(text_content, keywords, search_window=100):
         best_score = 0
@@ -91,29 +92,29 @@ if uploaded_file:
 
     if project_name == "Not specified":
         # Pattern 2: PROJECT TITLE: / NAME OF WORK: / SUBJECT: ... (more generic)
-        project_name_match_2 = re.search(r'(?:PROJECT TITLE|NAME OF WORK|SUBJECT|TENDER FOR)[:\s](.?)(?:\n|\.|$)', text, re.IGNORECASE | re.DOTALL)
+        project_name_match_2 = re.search(r'(?:PROJECT TITLE|NAME OF WORK|SUBJECT|TENDER FOR)[:\s](.*?)(?:\n|\.|$)', text, re.IGNORECASE | re.DOTALL)
         if project_name_match_2:
             project_name = project_name_match_2.group(1).strip()
             # Further refine, sometimes names can be on a single line
             if len(project_name.split()) > 20 and "\n" in project_name: # if very long and has newlines, take up to first newline
-                 project_name = project_name.split('\n')[0].strip()
+                project_name = project_name.split('\n')[0].strip()
 
     # Fallback to smart_search if targeted regex doesn't find it
     if project_name == "Not specified":
-         project_name_keywords = [
+        project_name_keywords = [
             "name of work", "project title", "work of", "tender for", "project name",
             "agreement name of project", "subject of work", "concerning",
             "improvement & construction of" # Added a very specific keyword from your example
         ]
-         project_name = smart_search(text, project_name_keywords, search_window=150)
-         if project_name.lower().startswith("agreement name of project"): # Clean if smart search picks up the lead-in
-             project_name = re.sub(r'agreement name of project[:\s]*', '', project_name, flags=re.IGNORECASE).strip()
+        project_name = smart_search(text, project_name_keywords, search_window=150)
+        if project_name.lower().startswith("agreement name of project"): # Clean if smart search picks up the lead-in
+            project_name = re.sub(r'agreement name of project[:\s]*', '', project_name, flags=re.IGNORECASE).strip()
 
 
     # --- Targeted Extraction for Scope of Work ---
     scope = "Not specified"
     # Pattern 1: Look for "scope of work" or similar phrases followed by a description
-    scope_match_1 = re.search(r'(?:scope of work|the work consists of|description of work|nature of work)[:\s](.?)(?:(?=\n\n)|(?=The contractor shall complete)|(?=Article \d)|(?=Clause \d)|(?=Term of)|(?=duration of work))', text, re.IGNORECASE | re.DOTALL)
+    scope_match_1 = re.search(r'(?:scope of work|the work consists of|description of work|nature of work)[:\s](.*?)(?:(?=\n\n)|(?=The contractor shall complete)|(?=Article \d)|(?=Clause \d)|(?=Term of)|(?=duration of work))', text, re.IGNORECASE | re.DOTALL)
     if scope_match_1:
         scope = scope_match_1.group(1).strip()
         # Clean up any leading punctuation or keywords that snuck in
@@ -265,4 +266,4 @@ if uploaded_file:
         st.success("✅ Audio generated successfully!")
     except Exception as e:
         st.error("❌ Failed to generate audio.")
-        st.exception(e)
+        st.exception(e)
