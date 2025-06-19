@@ -30,49 +30,40 @@ if uploaded_file:
 
     try:
         doc = fitz.open(pdf_path)
-        text = ""
-        for page in doc:
-            text += page.get_text()
+        text = " ".join([page.get_text().replace('\n', ' ') for page in doc])
     except Exception as e:
         st.error("❌ Failed to extract text from PDF.")
         st.exception(e)
         st.stop()
 
     def smart_search(text, keywords):
-        text = text.lower().replace('\n', ' ')
         best_score = 0
         best_match = "Not specified"
         for keyword in keywords:
             for sentence in text.split('.'):
-                score = fuzz.partial_ratio(keyword.lower(), sentence.strip())
-                if score > best_score and score > 60:
+                score = fuzz.partial_ratio(keyword.lower(), sentence.strip().lower())
+                if score > best_score and score > 65:
                     best_score = score
                     best_match = sentence.strip()
         return best_match
 
     # Field Extraction
-    title_match = re.search(r'(name of project|project title|subject)\s*[:\-]?\s*(.*)', text, re.IGNORECASE)
-    title = title_match.group(2).strip() if title_match else smart_search(text, ["name of project", "project title", "subject"])
+    title_match = re.search(r"(name of work|project title|project name|work of)\s*[:\-]?\s*(.*?)(\.|,|$)", text, re.IGNORECASE)
+    title = title_match.group(2).strip() if title_match else smart_search(text, ["project title", "name of work", "tender title"])
 
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
 
-    amount_match = re.search(r'(₹|rs\.?)[\s]*([\d,]+)', text.lower())
-    amount = f"₹{amount_match.group(2)}" if amount_match else "Not specified"
+    amount_match = re.search(r"(?:₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)", text.lower())
+    amount = f"₹{amount_match.group(1)}" if amount_match else "Not specified"
 
-    parties_block = re.search(r"between\s+(.+?)\s+and\s+(.+?)(\.|\n)", text, re.IGNORECASE | re.DOTALL)
-    if parties_block:
-        party1 = parties_block.group(1).strip().replace('\n', ' ')
-        party2 = parties_block.group(2).strip().replace('\n', ' ')
-        parties = f"1. {party1}\n2. {party2}"
-    else:
-        parties = smart_search(text, ["contractor", "solapur municipal", "between", "commissioner"])
+    parties = smart_search(text, ["solapur municipal corporation", "contractor", "commissioner", "between", "company", "party"])
 
-    scope = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
+    scope = smart_search(text, ["scope of work", "the work includes", "the work shall include", "project includes"])
 
-    duration_match = re.search(r'(within\s+\d+\s+(calendar\s+)?months)', text.lower())
-    duration = duration_match.group(1) if duration_match else smart_search(text, ["completion", "calendar months", "time period"])
+    duration = smart_search(text, ["within", "completion time", "calendar months", "construction period", "execution period"])
 
+    # Clause search
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
         "Termination": ["termination", "cancelled", "terminate"],
@@ -87,7 +78,7 @@ if uploaded_file:
         found = smart_search(text, keywords)
         clause_results.append(f"✅ {name}" if found != "Not specified" else f"❌ {name}")
 
-    # Paragraph Summary
+    # Summary Paragraph
     paragraph = f"This agreement"
     if parties != "Not specified":
         paragraph += f" is made between {parties}"
@@ -98,60 +89,59 @@ if uploaded_file:
     if amount != "Not specified":
         paragraph += f". The total contract value is {amount}"
     if duration != "Not specified":
-        paragraph += f", expected to be completed {duration}."
+        paragraph += f", and the duration for execution is {duration}."
     included = [c[2:] for c in clause_results if c.startswith("✅")]
     if included:
-        paragraph += " It includes clauses like: " + ", ".join(included) + "."
+        paragraph += " This agreement includes clauses like: " + ", ".join(included) + "."
 
-    # Display Summary
     st.subheader("📑 Extracted Summary")
     st.markdown(f"""
-<div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
-<p><b>📌 Title of Project:</b> {textwrap.fill(title, 100) if title else "Not specified"}</p>
-<p><b>📅 Agreement Date:</b> {date}</p>
-<p><b>👥 Parties Involved:</b><br> {textwrap.fill(parties, 100)}</p>
-<p><b>💰 Amount:</b> {amount}</p>
-<p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
-<p><b>⏱ Duration:</b> {duration}</p>
-<br><b>🧾 Legal Clauses:</b><br>
-{"<br>".join(clause_results)}
-<br><br><b>🧠 Summary Paragraph:</b><br>
-{textwrap.fill(paragraph, 100)}
-</div>
-""", unsafe_allow_html=True)
+    <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
+    <p><b>📌 Title of Project:</b> {textwrap.fill(title, 100)}</p>
+    <p><b>📅 Agreement Date:</b> {date}</p>
+    <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
+    <p><b>💰 Amount:</b> {amount}</p>
+    <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
+    <p><b>⏱ Duration:</b> {duration}</p>
+    <br><b>🧾 Legal Clauses:</b><br>
+    {"<br>".join(clause_results)}
+    <br><br><b>🧠 Summary Paragraph:</b><br>
+    {textwrap.fill(paragraph, 100)}
+    </div>
+    """, unsafe_allow_html=True)
 
-# Translation
-if lang == "Marathi":
-    st.info("🌐 Translating to Marathi...")
+    # Translation
+    if lang == "Marathi":
+        st.info("🌐 Translating to Marathi...")
+        try:
+            translated = GoogleTranslator(source='auto', target='mr').translate(paragraph)
+        except Exception as e:
+            st.error("❌ Marathi translation failed.")
+            st.exception(e)
+            translated = paragraph
+        final_text = translated
+        st.subheader("🈯 Marathi Translation")
+        st.text_area("Translated Output", final_text, height=300)
+    else:
+        final_text = paragraph
+
+    # Audio Generation
+    st.subheader("🎧 Audio Summary")
     try:
-        translated = GoogleTranslator(source='auto', target='mr').translate(paragraph)
+        tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
+        audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
+        tts.save(audio_path)
+        with open(audio_path, "rb") as audio_file:
+            audio_bytes = audio_file.read()
+            b64 = base64.b64encode(audio_bytes).decode()
+            audio_html = f"""
+                <audio controls style='width:100%'>
+                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                    Your browser does not support the audio element.
+                </audio>
+            """
+            st.markdown(audio_html, unsafe_allow_html=True)
+        st.success("✅ Audio generated successfully!")
     except Exception as e:
-        st.error("❌ Marathi translation failed.")
+        st.error("❌ Failed to generate audio.")
         st.exception(e)
-        translated = paragraph
-    final_text = translated
-    st.subheader("🈯 Marathi Translation")
-    st.text_area("Translated Output", final_text, height=300)
-else:
-    final_text = paragraph
-
-# Audio
-st.subheader("🎧 Audio Summary")
-try:
-    tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
-    audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
-    tts.save(audio_path)
-    with open(audio_path, "rb") as audio_file:
-        audio_bytes = audio_file.read()
-        b64 = base64.b64encode(audio_bytes).decode()
-        audio_html = f"""
-            <audio controls style='width:100%'>
-                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                Your browser does not support the audio element.
-            </audio>
-        """
-        st.markdown(audio_html, unsafe_allow_html=True)
-    st.success("✅ Audio generated successfully!")
-except Exception as e:
-    st.error("❌ Failed to generate audio.")
-    st.exception(e)
