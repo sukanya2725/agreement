@@ -1,5 +1,5 @@
 import streamlit as st
-import pymupdf as fitz # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 from gtts import gTTS
 import os
 import re
@@ -51,17 +51,22 @@ if uploaded_file:
         return best_match
 
     # Field Extraction
-    title_match = re.search(r'(project\s*(name|title)|subject|work of|name of work)[:\-]?\s*(.*?)(\.|\n|$)', text, re.IGNORECASE)
-    title = title_match.group(3).strip() if title_match else smart_search(text, ["project", "work of", "tender"])
+    title_match = re.search(r'(name of project|project title|subject)\s*[:\-]?\s*(.*)', text, re.IGNORECASE)
+    title = title_match.group(2).strip() if title_match else smart_search(text, ["name of project", "project title", "subject"])
 
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
 
-    amount_match = re.search(r'(₹|rs\.?)\s*([\d,]+)', text.lower())
+    amount_match = re.search(r'(₹|rs\.?)[\s]*([\d,]+)', text.lower())
     amount = f"₹{amount_match.group(2)}" if amount_match else "Not specified"
 
-    parties_match = re.search(r'(between.*?solapur municipal.*?commissioner.*?smc.*?)\n', text, re.IGNORECASE | re.DOTALL)
-    parties = parties_match.group(1).strip().replace('\n', ' ') if parties_match else smart_search(text, ["contractor", "between", "municipal", "company"])
+    parties_block = re.search(r"between\s+(.+?)\s+and\s+(.+?)(\.|\n)", text, re.IGNORECASE | re.DOTALL)
+    if parties_block:
+        party1 = parties_block.group(1).strip().replace('\n', ' ')
+        party2 = parties_block.group(2).strip().replace('\n', ' ')
+        parties = f"1. {party1}\n2. {party2}"
+    else:
+        parties = smart_search(text, ["contractor", "solapur municipal", "between", "commissioner"])
 
     scope = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
 
@@ -101,52 +106,52 @@ if uploaded_file:
     # Display Summary
     st.subheader("📑 Extracted Summary")
     st.markdown(f"""
-    <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
-    <p><b>📌 Title of Project:</b> {textwrap.fill(title, 100) if title else "Not specified"}</p>
-    <p><b>📅 Agreement Date:</b> {date}</p>
-    <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
-    <p><b>💰 Amount:</b> {amount}</p>
-    <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
-    <p><b>⏱ Duration:</b> {duration}</p>
-    <br><b>🧾 Legal Clauses:</b><br>
-    {"<br>".join(clause_results)}
-    <br><br><b>🧠 Summary Paragraph:</b><br>
-    {textwrap.fill(paragraph, 100)}
-    </div>
-    """, unsafe_allow_html=True)
+<div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
+<p><b>📌 Title of Project:</b> {textwrap.fill(title, 100) if title else "Not specified"}</p>
+<p><b>📅 Agreement Date:</b> {date}</p>
+<p><b>👥 Parties Involved:</b><br> {textwrap.fill(parties, 100)}</p>
+<p><b>💰 Amount:</b> {amount}</p>
+<p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
+<p><b>⏱ Duration:</b> {duration}</p>
+<br><b>🧾 Legal Clauses:</b><br>
+{"<br>".join(clause_results)}
+<br><br><b>🧠 Summary Paragraph:</b><br>
+{textwrap.fill(paragraph, 100)}
+</div>
+""", unsafe_allow_html=True)
 
-    # Translation
-    if lang == "Marathi":
-        st.info("🌐 Translating to Marathi...")
-        try:
-            translated = GoogleTranslator(source='auto', target='mr').translate(paragraph)
-        except Exception as e:
-            st.error("❌ Marathi translation failed.")
-            st.exception(e)
-            translated = paragraph
-        final_text = translated
-        st.subheader("🈯 Marathi Translation")
-        st.text_area("Translated Output", final_text, height=300)
-    else:
-        final_text = paragraph
-
-    # Audio
-    st.subheader("🎧 Audio Summary")
+# Translation
+if lang == "Marathi":
+    st.info("🌐 Translating to Marathi...")
     try:
-        tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
-        audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
-        tts.save(audio_path)
-        with open(audio_path, "rb") as audio_file:
-            audio_bytes = audio_file.read()
-            b64 = base64.b64encode(audio_bytes).decode()
-            audio_html = f"""
-                <audio controls style='width:100%'>
-                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                    Your browser does not support the audio element.
-                </audio>
-            """
-            st.markdown(audio_html, unsafe_allow_html=True)
-        st.success("✅ Audio generated successfully!")
+        translated = GoogleTranslator(source='auto', target='mr').translate(paragraph)
     except Exception as e:
-        st.error("❌ Failed to generate audio.")
+        st.error("❌ Marathi translation failed.")
         st.exception(e)
+        translated = paragraph
+    final_text = translated
+    st.subheader("🈯 Marathi Translation")
+    st.text_area("Translated Output", final_text, height=300)
+else:
+    final_text = paragraph
+
+# Audio
+st.subheader("🎧 Audio Summary")
+try:
+    tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
+    audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
+    tts.save(audio_path)
+    with open(audio_path, "rb") as audio_file:
+        audio_bytes = audio_file.read()
+        b64 = base64.b64encode(audio_bytes).decode()
+        audio_html = f"""
+            <audio controls style='width:100%'>
+                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                Your browser does not support the audio element.
+            </audio>
+        """
+        st.markdown(audio_html, unsafe_allow_html=True)
+    st.success("✅ Audio generated successfully!")
+except Exception as e:
+    st.error("❌ Failed to generate audio.")
+    st.exception(e)
