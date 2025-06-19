@@ -1,7 +1,8 @@
 import streamlit as st
-import pymupdf as fitz  # PyMuPDF
+import pymupdf as fitz
 from gtts import gTTS
 import os
+import re
 from deep_translator import GoogleTranslator
 import tempfile
 import base64
@@ -35,7 +36,6 @@ if uploaded_file:
         st.exception(e)
         st.stop()
 
-    # 👇 Enhanced smart_search to scan entire text
     def smart_search(text, keywords):
         text = text.lower().replace('\n', ' ')
         best_score = 0
@@ -51,27 +51,22 @@ if uploaded_file:
     def safe(val):
         return val if val and val != "Not found" else "Not specified"
 
-    # 🔎 Extract key fields with expanded keywords
-    title = safe(smart_search(text, [
-        "title", "project name", "agreement for", "subject", "work of", "construction of", "supply of"
-    ]))
-    date = safe(smart_search(text, [
-        "agreement date", "this agreement is made", "dated", "commencement date", "signed on", "execution date"
-    ]))
-    amount = safe(smart_search(text, [
-        "estimated cost", "₹", "rs", "contract value", "total amount", "amount payable"
-    ]))
-    parties = safe(smart_search(text, [
-        "between", "by and between", "contractor", "municipal corporation", "party a", "party b"
-    ]))
-    duration = safe(smart_search(text, [
-        "within", "duration", "calendar months", "complete within", "time frame"
-    ]))
-    scope = safe(smart_search(text, [
-        "scope", "scope of work", "services include", "includes", "deliverables", "responsibilities"
-    ]))
+    # 🎯 Regex-based key field extraction
+    amount_match = re.search(r'(₹|rs\.?)\s*[\d,]+', text.lower())
+    date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
 
-    # ✅ Clause detection
+    title = smart_search(text, ["project name", "work of", "subject", "agreement for"])
+    title = safe(" ".join(title.split()[:15]))
+
+    date = safe(date_match.group(0) if date_match else smart_search(text, ["agreement date", "signed on", "commencement"]))
+    amount = safe(amount_match.group(0).upper() if amount_match else "Not specified")
+
+    parties_line = smart_search(text, ["between", "contractor", "solapur municipal corporation"])
+    parties = safe(" ".join(parties_line.split()[:40]))
+
+    duration = safe(smart_search(text, ["within", "calendar months", "completion time", "duration"]))
+    scope = safe(smart_search(text, ["scope", "scope of work", "responsibility", "services include", "project includes"]))
+
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
         "Termination": ["termination", "cancelled", "terminate"],
@@ -86,7 +81,7 @@ if uploaded_file:
         found = smart_search(text, keywords)
         clause_results.append(f"✅ {name}" if found != "Not found" else f"❌ {name}")
 
-    # 📑 Summary + Paragraph
+    # 📄 Formatted Summary
     paragraph = f"This agreement"
     if parties != "Not specified":
         paragraph += f" is made between {parties}"
@@ -95,7 +90,7 @@ if uploaded_file:
     if scope != "Not specified":
         paragraph += f", covering work such as: {scope}"
     if amount != "Not specified":
-        paragraph += f". The total value is ₹{amount}"
+        paragraph += f". The total value is {amount}"
     if duration != "Not specified":
         paragraph += f", to be completed in {duration}."
     included = [c[2:] for c in clause_results if c.startswith("✅")]
@@ -107,7 +102,7 @@ if uploaded_file:
 📌 Title of Project – {title}
 📅 Agreement Date – {date}
 👥 Parties Involved – {parties}
-💰 Amount – ₹{amount}
+💰 Amount – {amount}
 📦 Scope of Work – {scope}
 ⏱ Duration – {duration}
 
@@ -118,14 +113,10 @@ if uploaded_file:
 {paragraph}
 """
 
-    st.markdown("""
-        <div style='background-color:#f2f2f2;padding:20px;border-radius:10px'>
-        <h4>🧾 Extracted Agreement Summary</h4>
-    """, unsafe_allow_html=True)
+    st.markdown("<h4>📑 Extracted Agreement Summary</h4>", unsafe_allow_html=True)
     st.text_area("Summary Output", full_summary, height=350)
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    # 🌐 Marathi Translation
+    # 🌍 Translation to Marathi
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -134,16 +125,13 @@ if uploaded_file:
             st.error("❌ Marathi translation failed.")
             st.exception(e)
             final_text = full_summary
-        st.markdown("<h4>🈯 Marathi Translation</h4>", unsafe_allow_html=True)
+        st.subheader("🈯 Marathi Translation")
         st.text_area("Translated Output", final_text, height=350)
     else:
         final_text = full_summary
 
-    # 🎧 Text-to-Speech (Marathi or English)
-    st.markdown("""
-        <div style='background-color:#e0f7fa;padding:20px;border-radius:10px'>
-        <h4>🔊 Audio Summary</h4>
-    """, unsafe_allow_html=True)
+    # 🔊 Audio Generation
+    st.subheader("🎧 Audio Summary")
     try:
         tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
         audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
@@ -154,7 +142,7 @@ if uploaded_file:
             b64 = base64.b64encode(audio_bytes).decode()
             audio_html = f"""
                 <audio controls style='width:100%'>
-                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                    <source src="data:audio/mp3;base64,{b64}' type="audio/mp3">
                     Your browser does not support the audio element.
                 </audio>
             """
@@ -163,4 +151,3 @@ if uploaded_file:
     except Exception as e:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
-    st.markdown("</div>", unsafe_allow_html=True)
