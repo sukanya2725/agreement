@@ -7,17 +7,23 @@ from deep_translator import GoogleTranslator
 import tempfile
 import base64
 
+# Set page title and layout
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 st.title("📄 Agreement Analyzer with Translation and Audio")
 
+# Upload PDF
 uploaded_file = st.file_uploader("Upload a PDF Document", type=["pdf"])
+
+# Language selection
 lang = st.selectbox("Select output language", ["English", "Marathi"])
 
 if uploaded_file:
+    # Save uploaded PDF to a temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
 
+    # Extract text using fitz (PyMuPDF)
     st.info("🔍 Extracting text from PDF...")
     try:
         doc = fitz.open(pdf_path)
@@ -30,9 +36,11 @@ if uploaded_file:
         st.exception(e)
         st.stop()
 
+    # Display Extracted Text
     st.subheader("📑 Extracted Text")
     st.text_area("OCR Output", extracted_text, height=300)
 
+    # Translate if Marathi selected
     if lang == "Marathi":
         st.info("🔄 Translating to Marathi...")
         try:
@@ -47,6 +55,7 @@ if uploaded_file:
     else:
         final_text = extracted_text
 
+    # Generate and play audio
     st.subheader("🔊 Listen to the Text")
     try:
         tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
