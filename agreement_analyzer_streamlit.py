@@ -1,5 +1,5 @@
 import streamlit as st
-import pymupdf as fitz  # from pymupdf
+import pymupdf as fitz  # PyMuPDF
 from gtts import gTTS
 import os
 import re
@@ -7,6 +7,7 @@ from deep_translator import GoogleTranslator
 import tempfile
 import base64
 from rapidfuzz import fuzz
+import textwrap
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
@@ -49,21 +50,19 @@ if uploaded_file:
                     best_match = sentence.strip()
         return best_match
 
-    # Field Extraction
     title_match = re.search(r'(project\s*(name|title)|subject|work of|name of work)[:\-]?\s*(.*?)(\.|\n|$)', text, re.IGNORECASE)
     title = title_match.group(3).strip() if title_match else smart_search(text, ["project", "work of", "tender"])
 
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
 
-    amount_match = re.search(r'(₹|rs\.?)\s*([\d,]+)', text.lower())
+    amount_match = re.search(r'(₹|rs\.?)[ \t]*([\d,]+)', text.lower())
     amount = f"₹{amount_match.group(2)}" if amount_match else "Not specified"
 
     parties_match = re.search(r'(between.*?solapur municipal.*?commissioner.*?smc.*?)\n', text, re.IGNORECASE | re.DOTALL)
-    parties = parties_match.group(1).strip().replace('\n', ' ') if parties_match else "Not specified"
+    parties = parties_match.group(1).strip().replace('\n', ' ') if parties_match else smart_search(text, ["party", "municipal corporation", "agreement between", "contractor"])
 
-    scope_line = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
-    scope = scope_line.strip() if scope_line != "Not specified" else "Not specified"
+    scope = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
 
     duration_match = re.search(r'(within\s+\d+\s+(calendar\s+)?months)', text.lower())
     duration = duration_match.group(1) if duration_match else smart_search(text, ["completion", "calendar months", "time period"])
@@ -83,7 +82,6 @@ if uploaded_file:
         found = smart_search(text, keywords)
         clause_results.append(f"✅ {name}" if found != "Not specified" else f"❌ {name}")
 
-    # Summary Paragraph
     paragraph = f"This agreement"
     if parties != "Not specified":
         paragraph += f" is made between {parties}"
@@ -102,33 +100,22 @@ if uploaded_file:
     full_summary = f"""
 📄 Agreement Summary:
 
-✅ **Title of Project:**
-{textwrap.fill(title, 90) if title else "Not specified"}
-
-📅 **Agreement Date:**
-{date}
-
-👥 **Parties Involved:**
-{textwrap.fill(parties, 90)}
-
-💰 **Amount:**
-{amount}
-
-📦 **Scope of Work:**
-{textwrap.fill(scope, 90)}
-
-⏱ **Duration:**
-{duration}
+📌 Title of Project – {textwrap.fill(title, 90) if title else "Not specified"}
+📅 Agreement Date – {date}
+👥 Parties Involved – {textwrap.fill(parties, 90)}
+💰 Amount – {amount}
+📦 Scope of Work – {textwrap.fill(scope, 90)}
+⏱ Duration – {duration}
 
 🧾 Legal Clauses:
 {chr(10).join(clause_results)}
 
-🧠 **Summary Paragraph:**
+🧠 Summary Paragraph:
 {textwrap.fill(paragraph, 100)}
-"""
+    """
 
     st.subheader("📑 Extracted Summary")
-    st.text_area("Summary", full_summary, height=500)
+    st.text_area("Summary", full_summary, height=400)
 
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
@@ -139,7 +126,7 @@ if uploaded_file:
             st.exception(e)
             final_text = full_summary
         st.subheader("🈯 Marathi Translation")
-        st.text_area("Translated Output", final_text, height=500)
+        st.text_area("Translated Output", final_text, height=400)
     else:
         final_text = full_summary
 
@@ -164,3 +151,14 @@ if uploaded_file:
     except Exception as e:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
+
+
+   
+   
+
+       
+
+    
+
+    
+               
