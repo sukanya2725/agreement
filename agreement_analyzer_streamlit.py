@@ -31,12 +31,17 @@ if uploaded_file:
 
     def smart_search(text, keywords):
         lines = text.lower().split('\n')
+        best_score = 0
+        best_line = "Not found"
         for line in lines:
             for keyword in keywords:
-                if fuzz.partial_ratio(keyword.lower(), line.lower()) > 80:
-                    return line.strip()
-        return "Not found"
+                score = fuzz.partial_ratio(keyword.lower(), line.lower())
+                if score > best_score and score > 60:
+                    best_score = score
+                    best_line = line.strip()
+        return best_line
 
+    # Extract details
     title = smart_search(text, ["agreement", "title", "project name"])
     date = smart_search(text, ["date", "commencement date", "signed on", "agreement date"])
     amount = smart_search(text, ["rs", "amount", "total payment", "₹"])
@@ -44,6 +49,7 @@ if uploaded_file:
     duration = smart_search(text, ["within", "duration", "time period", "complete within", "calendar months"])
     scope = smart_search(text, ["scope", "scope of work", "services", "deliverables", "responsibilities"])
 
+    # Clauses
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
         "Termination": ["termination", "cancelled", "can be terminated", "terminate"],
@@ -58,6 +64,7 @@ if uploaded_file:
         found = smart_search(text, keywords)
         clause_results.append(f"✅ {name}" if found != "Not found" else f"❌ {name}")
 
+    # 🧾 Structured Summary
     summary = f"""
 📄 Agreement Summary:
 📌 Title of Project – {title}
@@ -71,9 +78,38 @@ if uploaded_file:
 {chr(10).join(clause_results)}
     """
 
-    st.subheader("📑 Structured Summary")
-    st.text_area("Summary", summary, height=300)
+    # 🧠 Paragraph-style summary
+    summary_paragraph = "This agreement"
+    if parties != "Not found":
+        summary_paragraph += f" is made between {parties}"
+    else:
+        summary_paragraph += " involves multiple parties"
 
+    if date != "Not found":
+        summary_paragraph += f" on {date}"
+
+    if scope != "Not found":
+        summary_paragraph += f", and covers the following work: {scope}"
+
+    if amount != "Not found":
+        summary_paragraph += f". The total contract value is ₹{amount}"
+
+    if duration != "Not found":
+        summary_paragraph += f" and it is expected to be completed in {duration}"
+
+    summary_paragraph += "."
+
+    included_clauses = [c[2:] for c in clause_results if c.startswith("✅")]
+    if included_clauses:
+        summary_paragraph += " It includes legal clauses such as: " + ", ".join(included_clauses) + "."
+
+    summary += f"\n\n🧾 Paragraph Summary:\n{summary_paragraph}"
+
+    # Output section
+    st.subheader("📑 Structured Summary")
+    st.text_area("Summary", summary, height=400)
+
+    # Translation
     if lang == "Marathi":
         st.info("🔄 Translating to Marathi...")
         try:
@@ -83,10 +119,11 @@ if uploaded_file:
             st.exception(e)
             final_text = summary
         st.subheader("🈯 Marathi Summary")
-        st.text_area("Translated Output", final_text, height=300)
+        st.text_area("Translated Output", final_text, height=400)
     else:
         final_text = summary
 
+    # Audio section
     st.subheader("🔊 Listen to the Text")
     try:
         tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
