@@ -1,5 +1,4 @@
 streamlit
-pytesseract
 pymupdf
 gtts
 deep-translator
