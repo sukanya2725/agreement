@@ -1,5 +1,6 @@
 import streamlit as st
-import fitz  # from pymupdf
+import pymupdf as fitz  # ✅ Safe and guaranteed to load PyMuPDF
+  # from pymupdf
 from gtts import gTTS
 import os
 from deep_translator import GoogleTranslator
