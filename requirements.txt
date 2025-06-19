@@ -1,6 +1,7 @@
 streamlit
-pytesseract
-pymupdf
+fitz
 gtts
 deep-translator
+pymupdf
 Pillow
+rapidfuzz
