@@ -42,10 +42,14 @@ if uploaded_file:
         for keyword in keywords:
             for sentence in text.split('.'):
                 score = fuzz.partial_ratio(keyword.lower(), sentence.strip().lower())
-                if score > best_score and score > 65:
+                if score > best_score and score > 60:
                     best_score = score
                     best_match = sentence.strip()
         return best_match
+
+    def paragraph_near(keyword):
+        match = re.search(rf"({keyword}.*?\.)([^\.]{{0,300}})", text, re.IGNORECASE)
+        return match.group(0).strip() if match else "Not specified"
 
     # Field Extraction
     title_match = re.search(r"(name of work|project title|project name|work of)\s*[:\-]?\s*(.*?)(\.|,|$)", text, re.IGNORECASE)
@@ -54,12 +58,13 @@ if uploaded_file:
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
 
-    amount_match = re.search(r"(?:₹|rs\.?)\s*([\d,]+(?:\.\d{1,2})?)", text.lower())
-    amount = f"₹{amount_match.group(1)}" if amount_match else "Not specified"
+    # Improved amount extraction using paragraph context
+    amount = paragraph_near("amount|₹|rs|schedule-b")
 
     parties = smart_search(text, ["solapur municipal corporation", "contractor", "commissioner", "between", "company", "party"])
 
-    scope = smart_search(text, ["scope of work", "the work includes", "the work shall include", "project includes"])
+    # Scope using paragraph context too
+    scope = paragraph_near("scope of work|includes|project includes")
 
     duration = smart_search(text, ["within", "completion time", "calendar months", "construction period", "execution period"])
 
@@ -94,14 +99,15 @@ if uploaded_file:
     if included:
         paragraph += " This agreement includes clauses like: " + ", ".join(included) + "."
 
+    # Display in HTML
     st.subheader("📑 Extracted Summary")
     st.markdown(f"""
     <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
     <p><b>📌 Title of Project:</b> {textwrap.fill(title, 100)}</p>
     <p><b>📅 Agreement Date:</b> {date}</p>
     <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
-    <p><b>💰 Amount:</b> {amount}</p>
-    <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
+    <p><b>💰 Agreement Amount:</b><br>{textwrap.fill(amount, 100)}</p>
+    <p><b>📋 Scope of Work:</b><br>{textwrap.fill(scope, 100)}</p>
     <p><b>⏱ Duration:</b> {duration}</p>
     <br><b>🧾 Legal Clauses:</b><br>
     {"<br>".join(clause_results)}
