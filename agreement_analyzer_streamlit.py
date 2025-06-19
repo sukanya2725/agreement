@@ -1,8 +1,9 @@
 import streamlit as st
 import pymupdf as fitz
-from gtts import gTTS
 import os
 import re
+import textwrap  # ✅ Required for formatting
+from gtts import gTTS
 from deep_translator import GoogleTranslator
 import tempfile
 import base64
@@ -49,23 +50,25 @@ if uploaded_file:
                     best_match = sentence.strip()
         return best_match
 
-    def extract_party_info():
-        matches = re.findall(r'between(.*?)(?= and |\n)', text, re.IGNORECASE | re.DOTALL)
-        return matches[0].strip() if matches else "Not specified"
-
-    # Extract details
     title_match = re.search(r'(project\s*(name|title)|subject|work of|name of work)[:\-]?\s*(.*?)(\.|\n|$)', text, re.IGNORECASE)
     title = title_match.group(3).strip() if title_match else smart_search(text, ["project", "work of", "tender"])
+    title = textwrap.fill(title, 100) if title else "Not specified"
 
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
 
-    amount_match = re.search(r'(₹|rs\.?)[\s]*([-+]?[\d,]+)', text.lower())
+    amount_match = re.search(r'(₹|rs\.?)\s*([\d,]+)', text.lower())
     amount = f"₹{amount_match.group(2)}" if amount_match else "Not specified"
 
-    parties = extract_party_info()
-    scope = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
-    duration = smart_search(text, ["completion", "calendar months", "time period", "within", "contract period"])
+    parties_match = re.search(r'(between.*?solapur municipal.*?commissioner.*?smc.*?)\n', text, re.IGNORECASE | re.DOTALL)
+    parties = parties_match.group(1).strip().replace('\n', ' ') if parties_match else smart_search(text, ["solapur municipal", "contractor", "between"])
+
+    scope_line = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
+    scope = scope_line.strip() if scope_line else "Not specified"
+
+    duration_match = re.search(r'(within\s+\d+\s+(calendar\s+)?months)', text.lower())
+    duration = duration_match.group(1) if duration_match else smart_search(text, ["completion", "calendar months", "time period"])
+    duration = duration.strip() if duration else "Not specified"
 
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
@@ -81,47 +84,41 @@ if uploaded_file:
         found = smart_search(text, keywords)
         clause_results.append(f"✅ {name}" if found != "Not specified" else f"❌ {name}")
 
+    # Summary Paragraph
+    paragraph = "This agreement"
+    if parties != "Not specified":
+        paragraph += f" is made between {parties}"
+    if date != "Not specified":
+        paragraph += f" on {date}"
+    if scope != "Not specified":
+        paragraph += f", covering work such as: {scope}"
+    if amount != "Not specified":
+        paragraph += f". The total contract value is {amount}"
+    if duration != "Not specified":
+        paragraph += f", expected to be completed {duration}."
+    included = [c[2:] for c in clause_results if c.startswith("✅")]
+    if included:
+        paragraph += " It includes clauses like: " + ", ".join(included) + "."
+
     full_summary = f"""
-Here is the extracted summary of the key details from the agreement document:
+📄 Agreement Summary:
 
----
-
-✅ Title of Project:
-{textwrap.fill(title, 100) if title else "Not specified"}
-
----
-
-📅 Agreement Date:
-{date}
-
----
-
-👥 Parties Involved:
-{textwrap.fill(parties, 100)}
-
----
-
-💰 Agreement Amount:
-{amount}
-
----
-
-📋 Scope of Work:
-{textwrap.fill(scope, 100)}
-
----
-
-⏱ Duration:
-{textwrap.fill(duration, 100)}
-
----
+📌 **Title of Project** – {title}
+📅 **Agreement Date** – {date}
+👥 **Parties Involved** – {parties}
+💰 **Amount** – {amount}
+📦 **Scope of Work** – {scope}
+⏱ **Duration** – {duration}
 
 🧾 Legal Clauses:
 {chr(10).join(clause_results)}
+
+🧠 **Summary Paragraph**:
+{textwrap.fill(paragraph, 100)}
 """
 
-    st.subheader("📑 Agreement Summary")
-    st.text_area("Summary", full_summary, height=400)
+    st.subheader("📑 Extracted Summary")
+    st.text_area("Summary", full_summary, height=350)
 
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
@@ -157,14 +154,3 @@ Here is the extracted summary of the key details from the agreement document:
     except Exception as e:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
-
-
-      
-       
-
-
-    
-        
-    
-    
-               
