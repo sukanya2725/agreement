@@ -102,22 +102,33 @@ if uploaded_file:
     full_summary = f"""
 📄 Agreement Summary:
 
-📌 **Title of Project** – {title if title else "Not specified"}
-📅 **Agreement Date** – {date}
-👥 **Parties Involved** – {parties}
-💰 **Amount** – {amount}
-📦 **Scope of Work** – {scope}
-⏱ **Duration** – {duration}
+✅ **Title of Project:**
+{textwrap.fill(title, 90) if title else "Not specified"}
+
+📅 **Agreement Date:**
+{date}
+
+👥 **Parties Involved:**
+{textwrap.fill(parties, 90)}
+
+💰 **Amount:**
+{amount}
+
+📦 **Scope of Work:**
+{textwrap.fill(scope, 90)}
+
+⏱ **Duration:**
+{duration}
 
 🧾 Legal Clauses:
 {chr(10).join(clause_results)}
 
-🧠 **Summary Paragraph**:
-{paragraph}
+🧠 **Summary Paragraph:**
+{textwrap.fill(paragraph, 100)}
 """
 
     st.subheader("📑 Extracted Summary")
-    st.text_area("Summary", full_summary, height=350)
+    st.text_area("Summary", full_summary, height=500)
 
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
@@ -128,7 +139,7 @@ if uploaded_file:
             st.exception(e)
             final_text = full_summary
         st.subheader("🈯 Marathi Translation")
-        st.text_area("Translated Output", final_text, height=350)
+        st.text_area("Translated Output", final_text, height=500)
     else:
         final_text = full_summary
 
@@ -153,24 +164,3 @@ if uploaded_file:
     except Exception as e:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
-
-
-
-       
-
-   
-   
-       
-
-       
-       
-           
-      
-
-    
-  
-
-
-       
-           
-   
