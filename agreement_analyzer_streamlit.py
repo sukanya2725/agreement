@@ -5,7 +5,7 @@ import os
 from deep_translator import GoogleTranslator
 import tempfile
 import base64
-from fuzzywuzzy import fuzz
+from rapidfuzz import fuzz
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 st.title("📄 Agreement Analyzer with Translation and Audio")
