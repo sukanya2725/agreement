@@ -1,5 +1,5 @@
 import streamlit as st
-import pymupdf as fitz  # PyMuPDF
+import pymupdf as fitz
 from gtts import gTTS
 import os
 import re
@@ -29,25 +29,64 @@ if uploaded_file:
 
     try:
         doc = fitz.open(pdf_path)
-        text = " ".join([page.get_text().replace('\n', ' ') for page in doc])
+        text = " ".join([page.get_text().replace('\n', ' ').strip() for page in doc]) # Added .strip()
     except Exception as e:
         st.error("❌ Failed to extract text from PDF.")
         st.exception(e)
         st.stop()
 
-    def smart_search(text, keywords):
+    def smart_search(text, keywords, search_window=100): # Added search_window parameter
         best_score = 0
         best_match = "Not specified"
+        # Split text by common sentence/paragraph delimiters for better context
+        segments = re.split(r'[.!?\n\r]+', text) # Use regex for splitting
+
         for keyword in keywords:
-            for sentence in text.split('.'):
-                score = fuzz.partial_ratio(keyword.lower(), sentence.strip().lower())
-                if score > best_score and score > 60:
-                    best_score = score
-                    best_match = sentence.strip()
+            for segment in segments:
+                segment_lower = segment.strip().lower()
+                keyword_lower = keyword.lower()
+
+                # Try exact match first for high confidence
+                if keyword_lower in segment_lower:
+                    score = 100
+                else:
+                    score = fuzz.partial_ratio(keyword_lower, segment_lower)
+
+                if score > best_score and score >= 75: # Increased threshold for better accuracy
+                    # Find the start of the keyword in the segment
+                    try:
+                        start_index = segment_lower.find(keyword_lower)
+                        # Extract a window around the keyword for better context
+                        # This aims to get the surrounding phrase, not just the keyword itself
+                        start_of_match = max(0, start_index - 20) # Go back a few characters
+                        end_of_match = min(len(segment), start_index + len(keyword) + search_window) # Go forward
+                        extracted_phrase = segment[start_of_match:end_of_match].strip()
+
+                        # Further refine extraction for project name if a specific pattern is found
+                        if any(k in ["name of project", "project title"] for k in keywords):
+                            match = re.search(r'(?:name of project|project title|project name|tender for)[:\s]*(.*?)(?:\n|\r|\.|$)', extracted_phrase, re.IGNORECASE)
+                            if match:
+                                best_score = 100 # High confidence if pattern matches
+                                best_match = match.group(1).strip()
+                                # Clean up common trailing characters
+                                if best_match.endswith(','):
+                                    best_match = best_match[:-1]
+                                return best_match # Return immediately for high confidence match
+
+                        best_score = score
+                        best_match = segment.strip()
+                    except Exception:
+                        # Fallback if window extraction fails
+                        best_match = segment.strip()
         return best_match
 
     # Extract Fields
-    project_name = smart_search(text, ["name of work", "project title", "work of", "tender for", "project name"]) # Added "project name" to keywords
+    project_name_keywords = [
+        "name of project", "project title", "work of", "tender for", "project name",
+        "agreement name of project", "subject of work", "concerning" # Added more specific keywords
+    ]
+    project_name = smart_search(text, project_name_keywords)
+
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
 
@@ -58,15 +97,23 @@ if uploaded_file:
         amt_match = re.search(r'(?:₹|rs\.?)\s?[\d,]+(?:\.\d{1,2})?', text.lower())
         amount = amt_match.group(0).upper() if amt_match else "Not specified"
 
-    parties = smart_search(text, ["between", "municipal corporation", "contractor", "agreement signed"])
-    scope = smart_search(text, ["scope of work", "project includes", "the work includes", "responsibilities include", "construction and improvement"])
-    duration = smart_search(text, ["within", "calendar months", "construction period", "project completion time"])
+    parties = smart_search(text, ["between", "municipal corporation", "contractor", "agreement signed", "entered into by", "parties involved"])
+
+    # Refined Scope of Work keywords and a slightly different approach if needed
+    scope_keywords = [
+        "scope of work", "project includes", "the work includes", "responsibilities include",
+        "construction and improvement", "nature of work", "description of work",
+        "for the work of", "carrying out the work of" # More specific scope keywords
+    ]
+    scope = smart_search(text, scope_keywords, search_window=200) # Larger window for scope
+
+    duration = smart_search(text, ["within", "calendar months", "construction period", "project completion time", "period of completion"])
 
     # Clause search
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
         "Termination": ["termination", "cancelled", "terminate"],
-        "Dispute Resolution": ["arbitration", "dispute", "resolved", "decision of commissioner"],
+        "Dispute Resolution": ["arbitration", "dispute", "resolved", "decision of commissioner", "disputes shall be settled"],
         "Jurisdiction": ["jurisdiction", "governing law", "court", "legal"],
         "Force Majeure": ["force majeure", "natural events", "act of god", "unforeseen"],
         "Signatures": ["signed by", "signature", "authorized signatory"]
@@ -83,13 +130,15 @@ if uploaded_file:
         paragraph += f" is made between {parties}"
     if date != "Not specified":
         paragraph += f" on {date}"
+    if project_name != "Not specified": # Include project name in summary
+        paragraph += f" for the project: {project_name}"
     if scope != "Not specified":
         paragraph += f", covering work such as: {scope}"
     if amount != "Not specified":
         paragraph += f". The contract value is: {amount}"
     if duration != "Not specified":
         paragraph += f", with a total project duration of {duration}."
-    
+
     included = [c[2:] for c in clause_results if c.startswith("✅")]
     if included:
         paragraph += " The agreement includes clauses like: " + ", ".join(included) + "."
