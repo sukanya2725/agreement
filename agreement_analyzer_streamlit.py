@@ -1,5 +1,5 @@
 import streamlit as st
-import pymupdf as fitz
+import pymupdf as fitz  # PyMuPDF
 from gtts import gTTS
 import os
 from deep_translator import GoogleTranslator
@@ -7,10 +7,7 @@ import tempfile
 import base64
 from rapidfuzz import fuzz
 
-# Page config
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
-
-# Title with style
 st.markdown("""
     <div style="background-color:#003366;padding:15px;border-radius:10px">
         <h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1>
@@ -38,36 +35,49 @@ if uploaded_file:
         st.exception(e)
         st.stop()
 
+    # 👇 Enhanced smart_search to scan entire text
     def smart_search(text, keywords):
-        lines = text.lower().split('\n')
+        text = text.lower().replace('\n', ' ')
         best_score = 0
-        best_line = "Not found"
-        for line in lines:
-            for keyword in keywords:
-                score = fuzz.partial_ratio(keyword.lower(), line.lower())
+        best_match = "Not found"
+        for keyword in keywords:
+            for sentence in text.split('.'):
+                score = fuzz.partial_ratio(keyword.lower(), sentence.strip())
                 if score > best_score and score > 60:
                     best_score = score
-                    best_line = line.strip()
-        return best_line
+                    best_match = sentence.strip()
+        return best_match
 
     def safe(val):
         return val if val and val != "Not found" else "Not specified"
 
-    # Key fields
-    title = safe(smart_search(text, ["title", "project name", "agreement for", "subject"]))
-    date = safe(smart_search(text, ["date", "commencement", "signed on", "agreement date"]))
-    amount = safe(smart_search(text, ["rs", "amount", "contract value", "₹", "cost"]))
-    parties = safe(smart_search(text, ["between", "by and between", "contractor", "company"]))
-    duration = safe(smart_search(text, ["within", "duration", "calendar months", "complete within"]))
-    scope = safe(smart_search(text, ["scope", "work includes", "responsibilities", "services"]))
+    # 🔎 Extract key fields with expanded keywords
+    title = safe(smart_search(text, [
+        "title", "project name", "agreement for", "subject", "work of", "construction of", "supply of"
+    ]))
+    date = safe(smart_search(text, [
+        "agreement date", "this agreement is made", "dated", "commencement date", "signed on", "execution date"
+    ]))
+    amount = safe(smart_search(text, [
+        "estimated cost", "₹", "rs", "contract value", "total amount", "amount payable"
+    ]))
+    parties = safe(smart_search(text, [
+        "between", "by and between", "contractor", "municipal corporation", "party a", "party b"
+    ]))
+    duration = safe(smart_search(text, [
+        "within", "duration", "calendar months", "complete within", "time frame"
+    ]))
+    scope = safe(smart_search(text, [
+        "scope", "scope of work", "services include", "includes", "deliverables", "responsibilities"
+    ]))
 
-    # Clause checklist
+    # ✅ Clause detection
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
         "Termination": ["termination", "cancelled", "terminate"],
-        "Dispute Resolution": ["arbitration", "dispute", "resolved"],
-        "Jurisdiction": ["jurisdiction", "governing law", "court"],
-        "Force Majeure": ["force majeure", "natural events", "unforeseen"],
+        "Dispute Resolution": ["arbitration", "dispute", "resolved", "decision of commissioner"],
+        "Jurisdiction": ["jurisdiction", "governing law", "court", "legal"],
+        "Force Majeure": ["force majeure", "natural events", "act of god", "unforeseen"],
         "Signatures": ["signed by", "signature", "authorized signatory"]
     }
 
@@ -76,15 +86,21 @@ if uploaded_file:
         found = smart_search(text, keywords)
         clause_results.append(f"✅ {name}" if found != "Not found" else f"❌ {name}")
 
-    # Build summary
-    paragraph = f"""
-This agreement{' between ' + parties if parties != 'Not specified' else ''}{' on ' + date if date != 'Not specified' else ''}, 
-covers {scope if scope != 'Not specified' else 'a set of defined work'}. 
-The total amount is ₹{amount if amount != 'Not specified' else 'N/A'} and is expected to be completed in {duration}.
-"""
+    # 📑 Summary + Paragraph
+    paragraph = f"This agreement"
+    if parties != "Not specified":
+        paragraph += f" is made between {parties}"
+    if date != "Not specified":
+        paragraph += f" on {date}"
+    if scope != "Not specified":
+        paragraph += f", covering work such as: {scope}"
+    if amount != "Not specified":
+        paragraph += f". The total value is ₹{amount}"
+    if duration != "Not specified":
+        paragraph += f", to be completed in {duration}."
     included = [c[2:] for c in clause_results if c.startswith("✅")]
     if included:
-        paragraph += " Clauses included: " + ", ".join(included) + "."
+        paragraph += " It includes clauses like: " + ", ".join(included) + "."
 
     full_summary = f"""
 📄 Agreement Summary:
@@ -102,7 +118,6 @@ The total amount is ₹{amount if amount != 'Not specified' else 'N/A'} and is e
 {paragraph}
 """
 
-    # Styled summary display
     st.markdown("""
         <div style='background-color:#f2f2f2;padding:20px;border-radius:10px'>
         <h4>🧾 Extracted Agreement Summary</h4>
@@ -110,9 +125,9 @@ The total amount is ₹{amount if amount != 'Not specified' else 'N/A'} and is e
     st.text_area("Summary Output", full_summary, height=350)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Translation
+    # 🌐 Marathi Translation
     if lang == "Marathi":
-        st.info("🌐 Translating summary to Marathi...")
+        st.info("🌐 Translating to Marathi...")
         try:
             final_text = GoogleTranslator(source='auto', target='mr').translate(full_summary)
         except Exception as e:
@@ -124,7 +139,7 @@ The total amount is ₹{amount if amount != 'Not specified' else 'N/A'} and is e
     else:
         final_text = full_summary
 
-    # 🔊 Audio section
+    # 🎧 Text-to-Speech (Marathi or English)
     st.markdown("""
         <div style='background-color:#e0f7fa;padding:20px;border-radius:10px'>
         <h4>🔊 Audio Summary</h4>
