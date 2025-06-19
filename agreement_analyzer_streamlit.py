@@ -1,5 +1,5 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz  # from pymupdf
 from gtts import gTTS
 import os
 from deep_translator import GoogleTranslator
