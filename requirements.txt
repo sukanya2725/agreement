@@ -1,5 +1,6 @@
 streamlit
+pytesseract
 pymupdf
-gtts>=2.3.0
+gtts
 deep-translator
-rapidfuzz
+Pillow
