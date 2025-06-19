@@ -5,7 +5,7 @@ import os
 from deep_translator import GoogleTranslator
 import tempfile
 import base64
-import re
+from fuzzywuzzy import fuzz
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 st.title("📄 Agreement Analyzer with Translation and Audio")
@@ -29,29 +29,34 @@ if uploaded_file:
         st.exception(e)
         st.stop()
 
-    def extract_field(pattern):
-        match = re.search(pattern, text, re.IGNORECASE)
-        return match.group(1).strip() if match else "Not found"
+    def smart_search(text, keywords):
+        lines = text.lower().split('\n')
+        for line in lines:
+            for keyword in keywords:
+                if fuzz.partial_ratio(keyword.lower(), line.lower()) > 80:
+                    return line.strip()
+        return "Not found"
 
-    title = extract_field(r"(?:title|subject|project name)[^\n:]*[:\-]?\s*(.+)")
-    date = extract_field(r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})")
-    amount = extract_field(r"(?:Rs|₹)\s*([\d,]+)")
-    parties = extract_field(r"between\s+(.*?)\s+and")
-    duration = extract_field(r"within\s+(\d+.*?)\s")
-    scope = extract_field(r"(scope of work.*?)\n")
+    title = smart_search(text, ["agreement", "title", "project name"])
+    date = smart_search(text, ["date", "commencement date", "signed on", "agreement date"])
+    amount = smart_search(text, ["rs", "amount", "total payment", "₹"])
+    parties = smart_search(text, ["between", "by and between", "party a", "party b", "contractor"])
+    duration = smart_search(text, ["within", "duration", "time period", "complete within", "calendar months"])
+    scope = smart_search(text, ["scope", "scope of work", "services", "deliverables", "responsibilities"])
 
     clauses = {
-        "Confidentiality": "confidentiality",
-        "Termination": "termination",
-        "Dispute Resolution": "arbitration|dispute resolution",
-        "Jurisdiction": "jurisdiction",
-        "Force Majeure": "force majeure",
-        "Signatures": "signed by|signature"
+        "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
+        "Termination": ["termination", "cancelled", "can be terminated", "terminate"],
+        "Dispute Resolution": ["arbitration", "dispute", "resolved", "decision"],
+        "Jurisdiction": ["jurisdiction", "governing law", "court"],
+        "Force Majeure": ["force majeure", "act of god", "natural events", "unforeseen"],
+        "Signatures": ["signed by", "signature", "authorized signatory"]
     }
 
     clause_results = []
-    for name, keyword in clauses.items():
-        clause_results.append(f"✅ {name}" if re.search(keyword, text, re.IGNORECASE) else f"❌ {name}")
+    for name, keywords in clauses.items():
+        found = smart_search(text, keywords)
+        clause_results.append(f"✅ {name}" if found != "Not found" else f"❌ {name}")
 
     summary = f"""
 📄 Agreement Summary:
