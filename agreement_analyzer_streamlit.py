@@ -127,7 +127,154 @@ if lang == "Marathi":
         st.exception(e)
         translated = paragraph
     final_text = translated
+    st.subheader("🈯 Marathi Translationimport streamlit as st
+import pymupdf as fitz # PyMuPDF
+from gtts import gTTS
+import os
+import re
+from deep_translator import GoogleTranslator
+import tempfile
+import base64
+from rapidfuzz import fuzz
+import textwrap
+
+st.set_page_config(page_title="Agreement Analyzer", layout="centered")
+
+st.markdown("""
+
+<div style="background-color:#003366;padding:15px;border-radius:10px"> <h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1> </div> """, unsafe_allow_html=True)
+uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
+lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
+
+if uploaded_file:
+with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+tmp_file.write(uploaded_file.read())
+pdf_path = tmp_file.name
+
+python
+Copy
+Edit
+st.markdown("<hr>", unsafe_allow_html=True)
+st.info("🔍 Extracting and analyzing text...")
+
+try:
+    doc = fitz.open(pdf_path)
+    text = " ".join([page.get_text().replace('\n', ' ') for page in doc])
+except Exception as e:
+    st.error("❌ Failed to extract text from PDF.")
+    st.exception(e)
+    st.stop()
+
+def smart_search(text, keywords):
+    best_score = 0
+    best_match = "Not specified"
+    for keyword in keywords:
+        for sentence in text.split('.'):
+            score = fuzz.partial_ratio(keyword.lower(), sentence.strip().lower())
+            if score > best_score and score > 60:
+                best_score = score
+                best_match = sentence.strip()
+    return best_match
+
+# Extract Fields
+title = smart_search(text, ["name of work", "project title", "work of", "tender for"])
+date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
+date = date_match.group(0) if date_match else "Not specified"
+
+amount_sentence = smart_search(text, ["contract value", "final payable amount", "total amount", "estimated cost"])
+if "not specified" not in amount_sentence.lower():
+    amount = amount_sentence
+else:
+    amt_match = re.search(r'(?:₹|rs\.?)\s?[\d,]+(?:\.\d{1,2})?', text.lower())
+    amount = amt_match.group(0).upper() if amt_match else "Not specified"
+
+parties = smart_search(text, ["between", "municipal corporation", "contractor", "agreement signed"])
+scope = smart_search(text, ["scope of work", "project includes", "the work includes", "responsibilities include", "construction and improvement"])
+duration = smart_search(text, ["within", "calendar months", "construction period", "project completion time"])
+
+# Clause search
+clauses = {
+    "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
+    "Termination": ["termination", "cancelled", "terminate"],
+    "Dispute Resolution": ["arbitration", "dispute", "resolved", "decision of commissioner"],
+    "Jurisdiction": ["jurisdiction", "governing law", "court", "legal"],
+    "Force Majeure": ["force majeure", "natural events", "act of god", "unforeseen"],
+    "Signatures": ["signed by", "signature", "authorized signatory"]
+}
+
+clause_results = []
+for name, keywords in clauses.items():
+    found = smart_search(text, keywords)
+    clause_results.append(f"✅ {name}" if found != "Not specified" else f"❌ {name}")
+
+# Summary Paragraph
+paragraph = "This agreement"
+if parties != "Not specified":
+    paragraph += f" is made between {parties}"
+if date != "Not specified":
+    paragraph += f" on {date}"
+if scope != "Not specified":
+    paragraph += f", covering work such as: {scope}"
+if amount != "Not specified":
+    paragraph += f". The contract value is: {amount}"
+if duration != "Not specified":
+    paragraph += f", with a total project duration of {duration}."
+included = [c[2:] for c in clause_results if c.startswith("✅")]
+if included:
+    paragraph += " The agreement includes clauses like: " + ", ".join(included) + "."
+
+# Display
+st.subheader("📑 Extracted Summary")
+st.markdown(f"""
+<div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
+<p><b>📌 Title of Project:</b> {textwrap.fill(title, 100)}</p>
+<p><b>📅 Agreement Date:</b> {date}</p>
+<p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
+<p><b>💰 Amount:</b> {textwrap.fill(amount, 100)}</p>
+<p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
+<p><b>⏱ Duration:</b> {duration}</p>
+<br><b>🧾 Legal Clauses:</b><br>
+{"<br>".join(clause_results)}
+<br><br><b>🧠 Summary Paragraph:</b><br>
+{textwrap.fill(paragraph, 100)}
+</div>
+""", unsafe_allow_html=True)
+
+# Translation
+if lang == "Marathi":
+    st.info("🌐 Translating to Marathi...")
+    try:
+        translated = GoogleTranslator(source='auto', target='mr').translate(paragraph)
+    except Exception as e:
+        st.error("❌ Marathi translation failed.")
+        st.exception(e)
+        translated = paragraph
+    final_text = translated
     st.subheader("🈯 Marathi Translation")
+    st.text_area("Translated Output", final_text, height=300)
+else:
+    final_text = paragraph
+
+# Audio
+st.subheader("🎧 Audio Summary")
+try:
+    tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
+    audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
+    tts.save(audio_path)
+    with open(audio_path, "rb") as audio_file:
+        audio_bytes = audio_file.read()
+        b64 = base64.b64encode(audio_bytes).decode()
+        audio_html = f"""
+            <audio controls style='width:100%'>
+                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                Your browser does not support the audio element.
+            </audio>
+        """
+        st.markdown(audio_html, unsafe_allow_html=True)
+    st.success("✅ Audio generated successfully!")
+except Exception as e:
+    st.error("❌ Failed to generate audio.")
+    st.exception(e)
     st.text_area("Translated Output", final_text, height=300)
 else:
     final_text = paragraph
