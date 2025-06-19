@@ -1,6 +1,5 @@
 streamlit
 pymupdf
-gtts
+gtts>=2.3.0
 deep-translator
-Pillow
 rapidfuzz
