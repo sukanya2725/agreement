@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pymupdf as fitz  # from pymupdf
 from gtts import gTTS
@@ -51,8 +50,8 @@ if uploaded_file:
         return best_match
 
     # Field Extraction
-    title_match = re.search(r'(project\s*(name|title)|subject|work of|name of work)[:\-]?\s*(.*)', text, re.IGNORECASE)
-    title = title_match.group(3).strip() if title_match else smart_search(text, ["project", "work of", "tender"])[:80]
+    title_match = re.search(r'(project\s*(name|title)|subject|work of|name of work)[:\-]?\s*(.*?)(\.|\n|$)', text, re.IGNORECASE)
+    title = title_match.group(3).strip() if title_match else smart_search(text, ["project", "work of", "tender"])[:100]
 
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
@@ -60,8 +59,8 @@ if uploaded_file:
     amount_match = re.search(r'(₹|rs\.?)\s*([\d,]+)', text.lower())
     amount = f"₹{amount_match.group(2)}" if amount_match else "Not specified"
 
-    parties_match = re.search(r'between\s+(.*?)\s+and\s+', text, re.IGNORECASE | re.DOTALL)
-    parties = parties_match.group(1).strip() if parties_match else "Not specified"
+    parties_match = re.search(r'(between.*?solapur municipal.*?\n.*?commissioner.*?\n.*?smc.*?)\n', text, re.IGNORECASE | re.DOTALL)
+    parties = parties_match.group(1).strip().replace('\n', ' ') if parties_match else "Not specified"
 
     scope_line = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
     scope = scope_line.strip() if scope_line != "Not found" else "Not specified"
@@ -154,3 +153,16 @@ if uploaded_file:
     except Exception as e:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
+
+
+
+
+      
+
+    
+  
+
+
+       
+           
+   
