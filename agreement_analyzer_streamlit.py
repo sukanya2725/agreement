@@ -1,6 +1,6 @@
 import streamlit as st
 import pymupdf as fitz
-from gtts import gTTS, LANGUAGES # Import LANGUAGES directly
+from gtts import gTTS # Only import gTTS class
 import os
 import re
 from deep_translator import GoogleTranslator
@@ -29,8 +29,6 @@ def check_tesseract_availability():
     """
     try:
         dummy_pix = fitz.Pixmap(fitz.csRGB, (0, 0, 1, 1), (255, 255, 255))
-        # Attempt an OCR operation. If Tesseract is not found or tessdata is missing,
-        # this will raise an exception.
         _ = dummy_pix.pdfocr_tobytes(language='eng')
         logging.info("Tesseract OCR and English language data appear to be available.")
         return True
@@ -57,7 +55,6 @@ if uploaded_file:
     pdf_path = None # Initialize pdf_path outside try block
 
     try:
-        # Use tempfile to save the uploaded PDF, ensuring it's cleaned up properly
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             tmp_file.write(uploaded_file.read())
             pdf_path = tmp_file.name
@@ -67,25 +64,20 @@ if uploaded_file:
 
         doc = fitz.open(pdf_path)
         full_text_content = []
-        extracted_pages_count = 0 # Track pages that actually contribute text
+        extracted_pages_count = 0
 
         for page_num in range(doc.page_count):
             page = doc.load_page(page_num)
-            page_text = page.get_text("text") # Try extracting text directly (for searchable PDFs)
+            page_text = page.get_text("text")
 
-            # Heuristic to determine if a page might be scanned: very little extracted text
-            # This threshold (e.g., < 100 characters) might need adjustment based on typical document content.
-            # Only attempt OCR if Tesseract is confirmed to be available.
             if len(page_text.strip()) < 100 and TESSERACT_AVAILABLE:
                 logging.info(f"Page {page_num+1} seems sparse (direct text: {len(page_text.strip())} chars), attempting OCR.")
                 try:
-                    # Render page to high-res pixmap for better OCR quality
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # Use a higher resolution for OCR
-                    ocr_doc = fitz.open("pdf", pix.pdfocr_tobytes(language="eng")) # Assumes 'eng' language data
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    ocr_doc = fitz.open("pdf", pix.pdfocr_tobytes(language="eng"))
                     ocr_text = ocr_doc[0].get_text("text")
 
-                    # Use OCR text if it yields significantly more content
-                    if len(ocr_text.strip()) > len(page_text.strip()) * 1.5: # Use if OCR is 50% better
+                    if len(ocr_text.strip()) > len(page_text.strip()) * 1.5:
                         page_text = ocr_text
                         logging.info(f"OCR successfully extracted significantly more text for page {page_num+1}.")
                     else:
@@ -94,38 +86,26 @@ if uploaded_file:
                     logging.error(f"Error during OCR for page {page_num+1}: {ocr_e}")
                     st.warning(f"❌ Could not perform OCR on page {page_num+1}. Text extraction might be incomplete for this page.")
             
-            # Append text only if it's not empty after processing
             if page_text.strip():
                 full_text_content.append(page_text.replace('\n', ' ').strip())
                 extracted_pages_count += 1
 
         text = " ".join(full_text_content)
-        text = re.sub(r'\s+', ' ', text).strip() # Normalize multiple spaces to single space
+        text = re.sub(r'\s+', ' ', text).strip()
 
-        if not text: # Check if no text was extracted at all
+        if not text:
             st.error("❌ No readable text could be extracted from the PDF. It might be a purely scanned document without OCR, or Tesseract is not configured.")
             if not TESSERACT_AVAILABLE:
                 st.info("💡 **Hint:** The 'Raw Extracted Text' area below is empty because Tesseract OCR is not working. Install it as instructed above.")
             st.stop()
 
-
-        # --- DIAGNOSTIC STEP: SHOW RAW EXTRACTED TEXT ---
         st.subheader("🕵️‍♂️ Raw Extracted Text (for debugging)")
         st.text_area("Full PDF Text", text, height=500, help="This is the raw text extracted from your PDF. Check this if the summary is 'Not specified'.")
         st.warning("Please copy a relevant section of this text (especially around Project Name, Parties, Amount, Scope, Duration) and share it if you need further help debugging the regex patterns.")
-        # --- END DIAGNOSTIC STEP ---
 
-        # Function for fuzzy searching keywords within text
         def smart_search(text_content, keywords, search_window=100):
-            """
-            Performs a fuzzy search for keywords within text segments and returns
-            a relevant snippet.
-            """
             best_score = 0
             best_match = "Not specified"
-
-            # Split text into larger chunks/sentences to maintain context for fuzzy matching
-            # Increased delimiters to include period, question mark, exclamation mark followed by space or multiple newlines
             segments = re.split(r'(?<=[.!?])\s+|\n{2,}', text_content)
 
             for keyword in keywords:
@@ -134,32 +114,24 @@ if uploaded_file:
                     segment_lower = segment.strip().lower()
 
                     if keyword_lower in segment_lower:
-                        score = 100 # Exact match, highest score
+                        score = 100
                     else:
-                        # Use partial_ratio to find keywords within a larger string
                         score = fuzz.partial_ratio(keyword_lower, segment_lower)
 
-                    if score > best_score and score >= 70: # Score threshold to consider a match
+                    if score > best_score and score >= 70:
                         best_score = score
-                        # Try to find the exact position of the keyword (case-insensitive)
                         match_start = segment_lower.find(keyword_lower)
                         if match_start != -1:
-                            # Extract a snippet around the keyword for context
-                            context_start = max(0, match_start - 30) # A few characters before
-                            context_end = min(len(segment), match_start + len(keyword) + search_window) # Keyword length + window after
+                            context_start = max(0, match_start - 30)
+                            context_end = min(len(segment), match_start + len(keyword) + search_window)
                             extracted_snippet = segment[context_start:context_end].strip()
-
-                            # Basic cleaning: remove trailing sentence fragments that clearly start new ideas
                             extracted_snippet = re.sub(r'\s*\b(?:and|but|or|the|a|an|with|for|etc|i\.e\.|e\.g\.|that|which|who|whom|whose|this|these|those)\s+.*$', '', extracted_snippet, flags=re.IGNORECASE)
                             best_match = extracted_snippet
                         else:
-                            best_match = segment.strip() # Fallback to whole segment if index not found
-
+                            best_match = segment.strip()
             return best_match
 
-        # --- Targeted Extraction for Project Name ---
         project_name = "Not specified"
-        # Pattern 1: AGREEMENT NAME OF PROJECT: ...
         project_name_match_1 = re.search(r'AGREEMENT NAME OF PROJECT:\s*(.*?)(?:\n|The Agreement is entered|Between the|This Agreement|Whereas|WHEREAS)', text, re.IGNORECASE | re.DOTALL)
         if project_name_match_1:
             project_name = project_name_match_1.group(1).strip()
@@ -167,7 +139,6 @@ if uploaded_file:
             project_name = re.sub(r'(?i)\s*(?:the agreement|the city under|under|on|by|executed)$', '', project_name).strip()
 
         if project_name == "Not specified":
-            # Pattern 2: PROJECT TITLE: / NAME OF WORK: / SUBJECT: ... (more generic)
             project_name_match_2 = re.search(r'(?:PROJECT TITLE|NAME OF WORK|SUBJECT|TENDER FOR|AGREEMENT FOR|WORK ORDER NO)\s*[:\s]*(.*?)(?:\n|\.|$|The Agreement is entered|Between the|This Agreement|Whereas|WHEREAS)', text, re.IGNORECASE | re.DOTALL)
             if project_name_match_2:
                 project_name = project_name_match_2.group(1).strip()
@@ -175,27 +146,24 @@ if uploaded_file:
                     project_name = project_name.split('\n')[0].strip()
                 project_name = re.sub(r'(?i)\s*(?:the agreement|the city under|under|on|by|executed)$', '', project_name).strip()
 
-        # Fallback to smart_search
         if project_name == "Not specified":
             project_name_keywords = [
                 "name of work", "project title", "work of", "tender for", "project name",
                 "agreement name of project", "subject of work", "concerning",
                 "improvement & construction of", "agreement for", "work order for",
-                "nature of work" # Added "nature of work" as it can sometimes imply the project name
+                "nature of work"
             ]
             project_name_smart_match = smart_search(text, project_name_keywords, search_window=150)
             if project_name_smart_match != "Not specified":
                 project_name = project_name_smart_match
                 project_name = re.sub(r'(agreement name of project|agreement for|project title|name of work|subject|tender for|work order no|nature of work)[:\s]*', '', project_name, flags=re.IGNORECASE).strip()
 
-        # Final cleanup of project name
         project_name = re.sub(r'\s*\(hereinafter referred to as[\s\S]*?\)\s*', '', project_name, flags=re.IGNORECASE).strip()
         project_name = re.sub(r'^\W+', '', project_name).strip()
         if project_name.lower() in [kw.lower() for kw in project_name_keywords] or len(project_name.strip()) < 5:
             project_name = "Not specified"
         elif project_name.endswith('.'): project_name = project_name[:-1].strip()
 
-        # --- Targeted Extraction for Scope of Work ---
         scope = "Not specified"
         scope_match_1 = re.search(r'(?:scope of work|the work consists of|description of work|nature of work|details of work)[:\s]*(.*?)(?:(?=\n\n)|(?=The contractor shall complete)|(?=Article \d)|(?=Clause \d)|(?=Term of)|(?=duration of work)|(?=schedule of work)|(?=period of completion)|(?=terms and conditions)|(?=consideration for the work)|(?=TOTAL COST)|(?=AMOUNT IN RUPEES)|(?=IN WITNESS WHEREOF))', text, re.IGNORECASE | re.DOTALL)
         if scope_match_1:
@@ -210,7 +178,6 @@ if uploaded_file:
                 if scope.lower() in [kw.lower() for kw in project_name_keywords] or len(scope.strip()) < 5:
                     scope = "Not specified"
 
-        # Fallback to smart_search
         if scope == "Not specified":
             scope_keywords = [
                 "scope of work", "project includes", "the work includes", "responsibilities include",
@@ -225,14 +192,11 @@ if uploaded_file:
                 scope = scope_smart_match
                 scope = re.sub(r'(scope of work|project includes|the work includes|description of work|nature of work|details of work|objective of this agreement)[:\s]*', '', scope, flags=re.IGNORECASE).strip()
 
-        # Final cleanup of scope
         scope = re.sub(r'^\W+|\W+$', '', scope).strip()
         if scope.lower() in [kw.lower() for kw in scope_keywords] or len(scope.strip()) < 5:
             scope = "Not specified"
         elif scope.endswith('.'): scope = scope[:-1].strip()
 
-
-        # --- Other Extractions ---
         date_match = re.search(r'(?:dated|on|date of this agreement)\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*|\s+)\d{4}\b)', text, re.IGNORECASE)
         date = date_match.group(1) if date_match else "Not specified"
 
@@ -328,10 +292,9 @@ if uploaded_file:
         if included:
             paragraph += " The agreement includes clauses like: " + ", ".join(included) + "."
         
-        if len(paragraph.split()) < 10: # If the constructed paragraph is too short
+        if len(paragraph.split()) < 10:
             paragraph = "A detailed summary could not be generated due to limited or unextractable text. Further analysis of the document's content is required."
 
-        # Display
         st.subheader("📑 Extracted Summary")
         st.markdown(f"""
         <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
@@ -347,11 +310,23 @@ if uploaded_file:
         """, unsafe_allow_html=True)
 
         # Translation
+        # Get supported gTTS languages dynamically
+        try:
+            # Create a dummy gTTS object to access lang_list()
+            # lang_check=False can prevent a network call on instantiation if you just need the list
+            supported_gtts_languages = gTTS(text="test", lang="en", lang_check=False).lang_list()
+        except Exception as e:
+            logging.error(f"Could not get gTTS language list: {e}")
+            supported_gtts_languages = {} # Fallback to empty dict
+            st.warning("⚠️ Could not retrieve list of supported gTTS languages. Audio may not work for all languages.")
+
+
         if lang == "Marathi":
             st.info("🌐 Translating to Marathi...")
             try:
-                if 'mr' not in LANGUAGES: # Corrected: Use LANGUAGES from gtts directly
-                    st.warning("⚠️ Marathi language data not found for gTTS. Defaulting to English voice for audio if translation is successful.")
+                # Use 'mr' for Marathi language code
+                if 'mr' not in supported_gtts_languages:
+                     st.warning("⚠️ Marathi voice output may not be fully supported by gTTS. Defaulting to English voice for audio if translation is successful.")
                 translated = GoogleTranslator(source='auto', target='mr').translate(paragraph)
             except Exception as e:
                 st.error("❌ Marathi translation failed.")
@@ -366,12 +341,14 @@ if uploaded_file:
         # Audio
         st.subheader("🎧 Audio Summary")
         try:
-            audio_lang = 'mr' if lang == "Marathi" else 'en'
-            if audio_lang not in LANGUAGES: # Corrected: Use LANGUAGES from gtts directly
-                st.warning(f"⚠️ {lang} voice output may not be fully supported by gTTS. Defaulting to English voice for audio.")
-                audio_lang = 'en'
+            audio_lang_code = 'mr' if lang == "Marathi" else 'en'
             
-            tts = gTTS(final_text, lang=audio_lang)
+            # Check if the chosen audio language is actually supported by gTTS
+            if audio_lang_code not in supported_gtts_languages:
+                st.warning(f"⚠️ {lang} voice output may not be fully supported by gTTS (code: {audio_lang_code}). Defaulting to English voice for audio.")
+                audio_lang_code = 'en' # Fallback to English if not supported
+            
+            tts = gTTS(final_text, lang=audio_lang_code)
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as audio_tmp_file:
                 audio_path = audio_tmp_file.name
@@ -399,6 +376,5 @@ if uploaded_file:
         st.error("❌ An unexpected error occurred during PDF processing or summary generation.")
         st.exception(e)
     finally:
-        # Ensure the temporary PDF file is always deleted
         if pdf_path and os.path.exists(pdf_path):
             os.remove(pdf_path)
