@@ -9,6 +9,8 @@ import base64
 from rapidfuzz import fuzz
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
+
+# Header UI
 st.markdown("""
     <div style="background-color:#003366;padding:15px;border-radius:10px">
         <h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1>
@@ -48,25 +50,34 @@ if uploaded_file:
                     best_match = sentence.strip()
         return best_match
 
-    def safe(val):
-        return val if val and val != "Not found" else "Not specified"
+    # 🔍 Accurate Field Extraction
 
-    # 🎯 Regex-based key field extraction
-    amount_match = re.search(r'(₹|rs\.?)\s*[\d,]+', text.lower())
+    # Title of Project
+    title_match = re.search(r'(project\s*name|name\s*of\s*work|subject)[:\-]?\s*(.+)', text, re.IGNORECASE)
+    title = title_match.group(2).strip() if title_match else "Not specified"
+
+    # Agreement Date
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
+    date = date_match.group(0) if date_match else "Not specified"
 
-    title = smart_search(text, ["project name", "work of", "subject", "agreement for"])
-    title = safe(" ".join(title.split()[:15]))
+    # Amount
+    amount_match = re.search(r'(₹|rs\.?)\s*([\d,]+)', text.lower())
+    amount = f"₹{amount_match.group(2)}" if amount_match else "Not specified"
 
-    date = safe(date_match.group(0) if date_match else smart_search(text, ["agreement date", "signed on", "commencement"]))
-    amount = safe(amount_match.group(0).upper() if amount_match else "Not specified")
+    # Parties Involved
+    parties_match = re.search(r'between\s+(.*?)\s+and\s+', text, re.IGNORECASE | re.DOTALL)
+    parties = parties_match.group(1).strip() if parties_match else "Not specified"
 
-    parties_line = smart_search(text, ["between", "contractor", "solapur municipal corporation"])
-    parties = safe(" ".join(parties_line.split()[:40]))
+    # Scope of Work
+    scope_line = smart_search(text, ["scope of work", "the work includes", "responsibility", "project includes"])
+    scope = scope_line.strip() if scope_line != "Not found" else "Not specified"
 
-    duration = safe(smart_search(text, ["within", "calendar months", "completion time", "duration"]))
-    scope = safe(smart_search(text, ["scope", "scope of work", "responsibility", "services include", "project includes"]))
+    # Duration
+    duration_match = re.search(r'(within\s+\d+\s+(calendar\s+)?months)', text.lower())
+    duration = duration_match.group(1) if duration_match else smart_search(text, ["completion", "calendar months", "time period"])
+    duration = duration.strip() if duration else "Not specified"
 
+    # Legal Clauses
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure", "nda"],
         "Termination": ["termination", "cancelled", "terminate"],
@@ -81,7 +92,7 @@ if uploaded_file:
         found = smart_search(text, keywords)
         clause_results.append(f"✅ {name}" if found != "Not found" else f"❌ {name}")
 
-    # 📄 Formatted Summary
+    # ✍️ Smart Summary Paragraph
     paragraph = f"This agreement"
     if parties != "Not specified":
         paragraph += f" is made between {parties}"
@@ -90,13 +101,14 @@ if uploaded_file:
     if scope != "Not specified":
         paragraph += f", covering work such as: {scope}"
     if amount != "Not specified":
-        paragraph += f". The total value is {amount}"
+        paragraph += f". The total contract value is {amount}"
     if duration != "Not specified":
-        paragraph += f", to be completed in {duration}."
+        paragraph += f", expected to be completed {duration}."
     included = [c[2:] for c in clause_results if c.startswith("✅")]
     if included:
         paragraph += " It includes clauses like: " + ", ".join(included) + "."
 
+    # 📄 Final Summary
     full_summary = f"""
 📄 Agreement Summary:
 📌 Title of Project – {title}
@@ -113,10 +125,10 @@ if uploaded_file:
 {paragraph}
 """
 
-    st.markdown("<h4>📑 Extracted Agreement Summary</h4>", unsafe_allow_html=True)
-    st.text_area("Summary Output", full_summary, height=350)
+    st.subheader("📑 Extracted Summary")
+    st.text_area("Summary", full_summary, height=350)
 
-    # 🌍 Translation to Marathi
+    # 🌐 Marathi Translation
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -130,7 +142,7 @@ if uploaded_file:
     else:
         final_text = full_summary
 
-    # 🔊 Audio Generation
+    # 🔊 Audio
     st.subheader("🎧 Audio Summary")
     try:
         tts = gTTS(final_text, lang='mr' if lang == "Marathi" else 'en')
@@ -142,11 +154,12 @@ if uploaded_file:
             b64 = base64.b64encode(audio_bytes).decode()
             audio_html = f"""
                 <audio controls style='width:100%'>
-                    <source src="data:audio/mp3;base64,{b64}' type="audio/mp3">
+                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
                     Your browser does not support the audio element.
                 </audio>
             """
             st.markdown(audio_html, unsafe_allow_html=True)
+
         st.success("✅ Audio generated successfully!")
     except Exception as e:
         st.error("❌ Failed to generate audio.")
