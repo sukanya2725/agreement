@@ -7,7 +7,7 @@ import tempfile
 st.set_page_config(page_title="Flying Duolingo Bird Assistant", layout="centered")
 
 # ✅ Your Duolingo flying bird GIF
-bird_gif = "https://media.gifdb.com/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
+bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
 
 # --- CSS Animation + Bird Styles ---
 st.markdown(f"""
