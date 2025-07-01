@@ -15,18 +15,18 @@ from reportlab.lib.colors import black
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# --- Custom Styling ---
+# --- Enhanced Custom Styling ---
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
 
-html, body, [class*="css"]  {
-    font-family: 'Roboto', sans-serif;
-    background-color: #f0f2f6;
+html, body, [class*="css"] {
+    font-family: 'Poppins', sans-serif;
+    background-color: #fffde7;
 }
 
 h1, h2, h3 {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .block-container {
@@ -44,47 +44,84 @@ h1, h2, h3 {
     100% { transform: scale(1); opacity: 1; }
 }
 
-.stButton > button {
-    background-color: #003366;
-    color: white;
-    padding: 0.6em 1.4em;
-    font-weight: bold;
-    border-radius: 8px;
-    border: none;
-    transition: 0.3s ease;
-    animation: fadeInScale 0.6s ease-in-out;
-}
-
-.stButton > button:hover {
-    background-color: #002244;
-}
-
-.audio-container audio {
-    width: 100%;
-    outline: none;
-    border-radius: 10px;
-}
-
 section[data-testid="stFileUploader"] > label {
     display: block;
-    background: #ffffff;
-    padding: 1rem;
-    border-radius: 12px;
-    border: 2px dashed #003366;
+    background: linear-gradient(to right, #fff8dc, #fff3b0);
+    padding: 1.2rem;
+    border-radius: 16px;
+    border: 2px dashed #e6b800;
     text-align: center;
-    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     margin-top: 1.5rem;
     transition: all 0.3s ease;
 }
 
 section[data-testid="stFileUploader"] > label:hover {
-    background: #e6f0ff;
+    background: #fff1a8;
+    border-color: #cc9900;
     cursor: pointer;
-    border-color: #002244;
+}
+
+.stButton > button {
+    padding: 0.7em 1.6em;
+    border-radius: 12px;
+    font-weight: bold;
+    border: none;
+    color: white;
+    animation: fadeInScale 0.5s ease-in-out;
+    transition: all 0.3s ease-in-out;
+    background: linear-gradient(135deg, #ff6f61, #ffb74d);
+}
+
+.stButton > button:hover {
+    background: linear-gradient(135deg, #f4511e, #ffa726);
+}
+
+.flip-box {
+  background-color: transparent;
+  width: 100%;
+  perspective: 1000px;
+}
+
+.flip-box-inner {
+  position: relative;
+  width: 100%;
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+}
+
+.flip-box:hover .flip-box-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-box-front, .flip-box-back {
+  position: relative;
+  width: 100%;
+  backface-visibility: hidden;
+  border-radius: 15px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  padding: 25px;
+}
+
+.flip-box-front {
+  background-color: #fffde7;
+  color: black;
+}
+
+.flip-box-back {
+  background-color: #ffecb3;
+  color: black;
+  transform: rotateY(180deg);
 }
 
 [data-testid="stMarkdownContainer"] > div {
     animation: fadeInUp 0.7s ease;
+}
+
+.audio-container audio {
+    width: 100%;
+    border-radius: 10px;
+    outline: none;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -196,20 +233,30 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
+    # Flip box styled summary
     st.markdown(f"""
-    <div style="font-size:17px; background:#ffffff; padding:20px; border-radius:15px; box-shadow:0px 4px 15px rgba(0,0,0,0.1); margin-top:20px">
-    <h3 style="color:#003366;">📝 Summary Details</h3>
-    <p><b>📌 Project Name:</b> {textwrap.fill(project_name, 100)}</p>
-    <p><b>📅 Agreement Date:</b> {date}</p>
-    <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
-    <p><b>💰 Amount:</b> {textwrap.fill(amount, 100)}</p>
-    <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
-    <p><b>⏱ Duration:</b> {duration}</p>
-    <br><b>🧾 Legal Clauses:</b><br>{"<br>".join(clause_results)}
-    <br><br><b>🧠 Summary Paragraph:</b><br>{textwrap.fill(paragraph, 100)}
+    <div class="flip-box">
+      <div class="flip-box-inner">
+        <div class="flip-box-front">
+            <h3 style="color:#003366;">📝 Tap to View Summary</h3>
+            <p>Hover to reveal summary details.</p>
+        </div>
+        <div class="flip-box-back">
+            <h3 style="color:#003366;">📋 Summary Details</h3>
+            <p><b>📌 Project Name:</b> {textwrap.fill(project_name, 100)}</p>
+            <p><b>📅 Agreement Date:</b> {date}</p>
+            <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
+            <p><b>💰 Amount:</b> {textwrap.fill(amount, 100)}</p>
+            <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
+            <p><b>⏱ Duration:</b> {duration}</p>
+            <br><b>🧾 Legal Clauses:</b><br>{"<br>".join(clause_results)}
+            <br><br><b>🧠 Summary Paragraph:</b><br>{textwrap.fill(paragraph, 100)}
+        </div>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
+    # Translation
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -224,16 +271,15 @@ if uploaded_file:
     else:
         final_text = paragraph
 
+    # Audio
     st.subheader("🎧 Audio Summary")
     try:
-        max_chars = 3900
-        trimmed_text = final_text[:max_chars] + "..." if len(final_text) > max_chars else final_text
+        trimmed_text = final_text[:3900] + "..." if len(final_text) > 3900 else final_text
         tts = gTTS(trimmed_text, lang='mr' if lang == "Marathi" else 'en')
         audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
         tts.save(audio_path)
         with open(audio_path, "rb") as audio_file:
-            audio_bytes = audio_file.read()
-            b64 = base64.b64encode(audio_bytes).decode()
+            b64 = base64.b64encode(audio_file.read()).decode()
             audio_html = f"""
                 <div class='audio-container'>
                     <audio controls>
@@ -248,6 +294,7 @@ if uploaded_file:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
 
+    # PDF download
     summary_pdf_path = os.path.join(tempfile.gettempdir(), "agreement_summary_with_border.pdf")
     c = canvas.Canvas(summary_pdf_path, pagesize=A4)
     width, height = A4
