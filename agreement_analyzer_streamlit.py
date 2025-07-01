@@ -62,6 +62,14 @@ section[data-testid="stFileUploader"] > label:hover {
     cursor: pointer;
 }
 
+/* 🔴 Browse Files button red */
+section[data-testid="stFileUploader"] button {
+    background-color: red !important;
+    color: white !important;
+    font-weight: bold;
+    border-radius: 10px;
+}
+
 .stButton > button {
     padding: 0.7em 1.6em;
     border-radius: 12px;
@@ -75,6 +83,13 @@ section[data-testid="stFileUploader"] > label:hover {
 
 .stButton > button:hover {
     background: linear-gradient(135deg, #f4511e, #ffa726);
+}
+
+/* 🌈 Colorful Language Dropdown */
+div[data-baseweb="select"] > div {
+    background: linear-gradient(45deg, #ff9a9e, #fad0c4) !important;
+    color: black !important;
+    border-radius: 10px;
 }
 
 .flip-box {
@@ -126,8 +141,9 @@ section[data-testid="stFileUploader"] > label:hover {
 </style>
 """, unsafe_allow_html=True)
 
+# 💚 Dark Green Header
 st.markdown("""
-<div style="background-color:#003366;padding:15px;border-radius:10px">
+<div style="background-color:#064e3b;padding:15px;border-radius:10px">
 <h1 style="color:white;text-align:center;">📄 Agreement Analyzer </h1>
 </div>
 """, unsafe_allow_html=True)
