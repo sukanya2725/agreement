@@ -190,12 +190,23 @@ if uploaded_file:
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
-            translated = GoogleTranslator(source='auto', target='mr').translate(paragraph[:4000])
+            translated_paragraph = GoogleTranslator(source='auto', target='mr').translate(paragraph[:4000])
+            translated_title = GoogleTranslator(source='auto', target='mr').translate(project_name)
+            translated_parties = GoogleTranslator(source='auto', target='mr').translate(parties)
+            translated_amount = GoogleTranslator(source='auto', target='mr').translate(amount)
+            translated_scope = GoogleTranslator(source='auto', target='mr').translate(scope)
+            translated_duration = GoogleTranslator(source='auto', target='mr').translate(duration)
         except Exception as e:
             st.error("❌ Marathi translation failed.")
             st.exception(e)
-            translated = paragraph
-        final_text = translated
+            translated_paragraph = paragraph
+            translated_title = project_name
+            translated_parties = parties
+            translated_amount = amount
+            translated_scope = scope
+            translated_duration = duration
+
+        final_text = translated_paragraph
         st.subheader("🈯 मराठी अनुवाद")
 
         st.markdown(f"""
@@ -207,14 +218,14 @@ if uploaded_file:
             </div>
             <div class="flip-box-back">
                 <h3 style="color:#003366;">📋 मराठी तपशील</h3>
-                <p><b>📌 प्रकल्पाचे नाव:</b> {textwrap.fill(project_name, 100)}</p>
+                <p><b>📌 प्रकल्पाचे नाव:</b> {textwrap.fill(translated_title, 100)}</p>
                 <p><b>📅 कराराची तारीख:</b> {date}</p>
-                <p><b>👥 पक्ष:</b> {textwrap.fill(parties, 100)}</p>
-                <p><b>💰 रक्कम:</b> {textwrap.fill(amount, 100)}</p>
-                <p><b>📦 कामाचा व्याप:</b> {textwrap.fill(scope, 100)}</p>
-                <p><b>⏱ कालावधी:</b> {duration}</p>
+                <p><b>👥 पक्ष:</b> {textwrap.fill(translated_parties, 100)}</p>
+                <p><b>💰 रक्कम:</b> {textwrap.fill(translated_amount, 100)}</p>
+                <p><b>📦 कामाचा व्याप:</b> {textwrap.fill(translated_scope, 100)}</p>
+                <p><b>⏱ कालावधी:</b> {translated_duration}</p>
                 <br><b>🧾 कायदेशीर अटी:</b><br>{"<br>".join(clause_results)}
-                <br><br><b>🧠 सारांश परिच्छेद:</b><br>{textwrap.fill(translated, 100)}
+                <br><br><b>🧠 सारांश परिच्छेद:</b><br>{textwrap.fill(translated_paragraph, 100)}
             </div>
           </div>
         </div>
