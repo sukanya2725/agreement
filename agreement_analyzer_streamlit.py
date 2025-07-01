@@ -16,7 +16,10 @@ from reportlab.lib.colors import black
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
 # ✅ Show UI Design Image at Top
-st.image("ui_banner.png", use_column_width=True)
+if os.path.exists("ui_banner.png"):
+    st.image("ui_banner.png", use_container_width=True)
+else:
+    st.warning("⚠️ 'ui_banner.png' not found. Please upload it in the same folder as your app.")
 
 # --- Custom Styling ---
 st.markdown("""
@@ -42,6 +45,11 @@ h1, h2, h3 {
     100% { transform: translateY(0); opacity: 1; }
 }
 
+@keyframes fadeInScale {
+    0% { transform: scale(0.95); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
 .stButton > button {
     background-color: #003366;
     color: white;
@@ -50,6 +58,7 @@ h1, h2, h3 {
     border-radius: 8px;
     border: none;
     transition: 0.3s ease;
+    animation: fadeInScale 0.6s ease-in-out;
 }
 
 .stButton > button:hover {
@@ -79,6 +88,10 @@ section[data-testid="stFileUploader"] > label:hover {
     cursor: pointer;
     border-color: #002244;
 }
+
+[data-testid="stMarkdownContainer"] > div {
+    animation: fadeInUp 0.7s ease;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -87,6 +100,9 @@ st.markdown("""
 <h1 style="color:white;text-align:center;">📄 Agreement Analyzer </h1>
 </div>
 """, unsafe_allow_html=True)
+
+# Your existing logic will continue from here...
+
 
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
