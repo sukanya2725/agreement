@@ -13,10 +13,54 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from reportlab.lib.colors import black
 
-# ✅ No need to use st.set_option for upload size
-# Set maxUploadSize = 1000 in .streamlit/config.toml
-
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
+
+# --- Custom Styling ---
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+html, body, [class*="css"]  {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f0f2f6;
+}
+
+h1, h2, h3 {
+    font-weight: 700;
+}
+
+.block-container {
+    padding: 2rem;
+    animation: fadeInUp 0.8s ease-in-out;
+}
+
+@keyframes fadeInUp {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+.stButton > button {
+    background-color: #003366;
+    color: white;
+    padding: 0.6em 1.4em;
+    font-weight: bold;
+    border-radius: 8px;
+    border: none;
+    transition: 0.3s ease;
+}
+
+.stButton > button:hover {
+    background-color: #002244;
+}
+
+.audio-container audio {
+    width: 100%;
+    outline: none;
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown("""
 <div style="background-color:#003366;padding:15px;border-radius:10px">
 <h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1>
@@ -36,7 +80,6 @@ if uploaded_file:
 
     try:
         doc = fitz.open(pdf_path)
-
         all_text = []
         total_pages = len(doc)
 
@@ -125,9 +168,9 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
-    st.subheader("📑 Extracted Summary")
     st.markdown(f"""
-    <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
+    <div style="font-size:17px; background:#ffffff; padding:20px; border-radius:15px; box-shadow:0px 4px 15px rgba(0,0,0,0.1); margin-top:20px">
+    <h3 style="color:#003366;">📝 Summary Details</h3>
     <p><b>📌 Project Name:</b> {textwrap.fill(project_name, 100)}</p>
     <p><b>📅 Agreement Date:</b> {date}</p>
     <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
@@ -164,10 +207,12 @@ if uploaded_file:
             audio_bytes = audio_file.read()
             b64 = base64.b64encode(audio_bytes).decode()
             audio_html = f"""
-                <audio controls style='width:100%'>
-                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                    Your browser does not support the audio element.
-                </audio>
+                <div class='audio-container'>
+                    <audio controls>
+                        <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
             """
             st.markdown(audio_html, unsafe_allow_html=True)
         st.success("✅ Audio generated successfully!")
@@ -175,7 +220,6 @@ if uploaded_file:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
 
-    # PDF DOWNLOAD WITH BORDER
     summary_pdf_path = os.path.join(tempfile.gettempdir(), "agreement_summary_with_border.pdf")
     c = canvas.Canvas(summary_pdf_path, pagesize=A4)
     width, height = A4
