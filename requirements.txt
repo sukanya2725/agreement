@@ -3,4 +3,4 @@ pymupdf
 gTTS
 deep_translator
 rapidfuzz
-reportlab
+reportlab 
