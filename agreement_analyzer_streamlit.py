@@ -43,9 +43,9 @@ def get_bird_position():
     if st.session_state.bird_step == 0:
         return "top: 20px; left: 30px;"
     elif st.session_state.bird_step == 1:
-        return "top: 260px; left: 120px;"
+        return "top: 320px; left: 10px;"
     elif st.session_state.bird_step == 2:
-        return "top: 1700px; left: 160px;"
+        return "top: 1850px; left: 160px;"
     return "top: 30px; left: 30px;"
 
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
@@ -194,3 +194,24 @@ if st.session_state.bird_step == 1:
 
 if uploaded_file:
     st.session_state.bird_step = 2
+    bird_speak_once("summary", "Click below to listen to the summary. Thank you")
+
+    # Audio Summary Output
+    summary_text = "This is your audio summary sample text for testing."  # replace this later with real extracted summary
+    st.subheader("🎧 Audio Summary")
+    try:
+        tts = gTTS(summary_text[:3900], lang='en')
+        audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
+        tts.save(audio_path)
+        with open(audio_path, "rb") as f:
+            b64_audio = base64.b64encode(f.read()).decode()
+        st.markdown(f"""
+        <div class="audio-container">
+            <audio controls>
+                <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
+            </audio>
+        </div>
+        """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error("❌ Audio generation failed.")
+        st.exception(e)
