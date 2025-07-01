@@ -58,6 +58,25 @@ h1, h2, h3 {
     outline: none;
     border-radius: 10px;
 }
+
+/* Enhanced file uploader box */
+section[data-testid="stFileUploader"] > label {
+    display: block;
+    background: #ffffff;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 2px dashed #003366;
+    text-align: center;
+    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
+    margin-top: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+section[data-testid="stFileUploader"] > label:hover {
+    background: #e6f0ff;
+    cursor: pointer;
+    border-color: #002244;
+}
 </style>
 """, unsafe_allow_html=True)
 
