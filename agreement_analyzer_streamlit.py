@@ -9,7 +9,7 @@ from rapidfuzz import fuzz
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# --- Track voice and bird stages ---
+# --- Session State Flags ---
 if "bird_stage" not in st.session_state:
     st.session_state.bird_stage = "fly-header"
 if "welcome_done" not in st.session_state:
@@ -21,7 +21,7 @@ if "summary_done" not in st.session_state:
 
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
 
-# --- CSS Styling: Bird + Flip Card ---
+# --- CSS Styling ---
 st.markdown(f"""
 <style>
 .bird {{
@@ -29,28 +29,14 @@ st.markdown(f"""
     width: 90px;
     z-index: 999;
 }}
-
-.fly-header {{
-    top: 20px; left: 30px;
-}}
-
 @keyframes flyToUpload {{
   0% {{ top: 20px; left: 30px; }}
   100% {{ top: 270px; left: 160px; }}
 }}
-.fly-upload {{
-    animation: flyToUpload 2s forwards;
-}}
-
 @keyframes flyToAudio {{
   0% {{ top: 270px; left: 160px; }}
-  100% {{ top: 780px; left: 160px; }}
+  100% {{ top: 960px; left: 160px; }}
 }}
-.fly-audio {{
-    animation: flyToAudio 2s forwards;
-}}
-
-/* Flip Card Styling */
 .card-flip {{
   background: transparent;
   width: 100%;
@@ -86,9 +72,15 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# 🐦 Bird HTML - transparent background
+# --- Bird Positioning ---
+bird_position = {
+    "fly-header": "top: 20px; left: 30px;",
+    "fly-upload": "top: 270px; left: 160px;",
+    "fly-audio": "top: 960px; left: 160px;"
+}
+style = bird_position.get(st.session_state.bird_stage, "top: 20px; left: 30px;")
 st.markdown(f"""
-<div class="bird {st.session_state.bird_stage}" style="background: none !important;">
+<div class="bird" style="{style}; background: none !important;">
     <img src="{bird_gif}" width="90" style="background: transparent !important;">
 </div>
 """, unsafe_allow_html=True)
@@ -107,16 +99,16 @@ def speak(text):
             """, unsafe_allow_html=True)
     time.sleep(2)
 
-# --- Header Title ---
+# --- Title ---
 st.markdown("<h1 style='text-align:center; color:#2c3e50;'>📄 Agreement Analyzer</h1>", unsafe_allow_html=True)
 
-# 🐤 Welcome Voice (only once)
+# --- Welcome Voice ---
 if not st.session_state.welcome_done:
     speak("Welcome to my app")
     st.session_state.welcome_done = True
     st.session_state.bird_stage = "fly-upload"
 
-# 📤 Upload Step
+# --- File Upload ---
 uploaded_file = st.file_uploader("📤 Upload Agreement (PDF)", type=["pdf"])
 if uploaded_file:
     if not st.session_state.upload_done:
@@ -126,7 +118,7 @@ if uploaded_file:
         st.session_state.upload_done = True
         st.session_state.bird_stage = "fly-audio"
 
-    # Save temp PDF
+    # --- Read PDF ---
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
@@ -135,6 +127,7 @@ if uploaded_file:
     text = " ".join([page.get_text() for page in doc])
     text = re.sub(r'\s+', ' ', text)
 
+    # --- Extraction ---
     def smart_search(text, keywords):
         best = "Not specified"
         score = 0
@@ -178,12 +171,12 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
-    # 🐤 Summary Output Voice (once)
+    # --- Summary Voice ---
     if not st.session_state.summary_done:
-        speak("Here is your output. Click below to listen to summary. Thank you.")
+        speak("Here is your output.")
         st.session_state.summary_done = True
 
-    # Flip Card Summary
+    # --- Flip Card ---
     st.markdown(f"""
     <div class="card-flip">
       <div class="card-inner">
@@ -203,7 +196,11 @@ if uploaded_file:
     </div>
     """, unsafe_allow_html=True)
 
-    # 🎧 Summary Audio just below card
+    # --- Bird speaks when it lands on audio section ---
+    if st.session_state.bird_stage == "fly-audio":
+        speak("Click below to listen to summary")
+
+    # --- Audio Summary ---
     tts = gTTS(paragraph[:3900], lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as audio_file:
         tts.save(audio_file.name)
