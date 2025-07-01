@@ -1,5 +1,5 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz
 import re
 import tempfile
 import base64
@@ -9,116 +9,71 @@ from rapidfuzz import fuzz
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# --- Session State Flags ---
-if "bird_stage" not in st.session_state:
-    st.session_state.bird_stage = "fly-header"
-if "welcome_done" not in st.session_state:
-    st.session_state.welcome_done = False
-if "upload_done" not in st.session_state:
-    st.session_state.upload_done = False
-if "summary_done" not in st.session_state:
-    st.session_state.summary_done = False
+# --- Session State Setup ---
+for key in ["bird_step", "welcome_spoken", "upload_spoken", "summary_spoken"]:
+    if key not in st.session_state:
+        st.session_state[key] = False if key != "bird_step" else 0
 
+# --- Speak Function (once per step) ---
+def step_speak(flag_key, text):
+    if not st.session_state[flag_key]:
+        tts = gTTS(text, lang='en')
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+            tts.save(fp.name)
+            with open(fp.name, "rb") as audio_file:
+                b64 = base64.b64encode(audio_file.read()).decode()
+                st.markdown(f"""
+                <audio autoplay>
+                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                </audio>
+                """, unsafe_allow_html=True)
+        time.sleep(2)
+        st.session_state[flag_key] = True
+
+# --- Bird Position based on step ---
+def get_bird_style():
+    if st.session_state["bird_step"] == 0:
+        return "top: 20px; left: 30px;"
+    elif st.session_state["bird_step"] == 1:
+        return "top: 240px; left: 160px;"
+    elif st.session_state["bird_step"] == 2:
+        return "top: 940px; left: 160px;"
+    return "top: 20px; left: 30px;"
+
+# --- Bird HTML ---
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
-
-# --- CSS Styling ---
 st.markdown(f"""
 <style>
 .bird {{
     position: absolute;
-    width: 90px;
     z-index: 999;
-}}
-@keyframes flyToUpload {{
-  0% {{ top: 20px; left: 30px; }}
-  100% {{ top: 270px; left: 160px; }}
-}}
-@keyframes flyToAudio {{
-  0% {{ top: 270px; left: 160px; }}
-  100% {{ top: 960px; left: 160px; }}
-}}
-.card-flip {{
-  background: transparent;
-  width: 100%;
-  perspective: 1000px;
-  margin-top: 2rem;
-}}
-.card-inner {{
-  position: relative;
-  width: 100%;
-  transition: transform 1s;
-  transform-style: preserve-3d;
-}}
-.card-flip:hover .card-inner {{
-  transform: rotateY(180deg);
-}}
-.card-front, .card-back {{
-  position: absolute;
-  width: 100%;
-  backface-visibility: hidden;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 0 15px rgba(0,0,0,0.15);
-}}
-.card-front {{
-  background-color: #fff7d1;
-  color: #333;
-}}
-.card-back {{
-  background-color: #e1f5fe;
-  transform: rotateY(180deg);
-  color: #004d40;
+    width: 90px;
 }}
 </style>
-""", unsafe_allow_html=True)
-
-# --- Bird Positioning ---
-bird_position = {
-    "fly-header": "top: 20px; left: 30px;",
-    "fly-upload": "top: 270px; left: 160px;",
-    "fly-audio": "top: 960px; left: 160px;"
-}
-style = bird_position.get(st.session_state.bird_stage, "top: 20px; left: 30px;")
-st.markdown(f"""
-<div class="bird" style="{style}; background: none !important;">
-    <img src="{bird_gif}" width="90" style="background: transparent !important;">
+<div class="bird" style="{get_bird_style()}">
+    <img src="{bird_gif}" width="90">
 </div>
 """, unsafe_allow_html=True)
 
-# --- Speak Function ---
-def speak(text):
-    tts = gTTS(text, lang='en')
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-        tts.save(fp.name)
-        with open(fp.name, "rb") as audio_file:
-            b64 = base64.b64encode(audio_file.read()).decode()
-            st.markdown(f"""
-            <audio autoplay>
-                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-            </audio>
-            """, unsafe_allow_html=True)
-    time.sleep(2)
-
-# --- Title ---
+# --- App Title ---
 st.markdown("<h1 style='text-align:center; color:#2c3e50;'>📄 Agreement Analyzer</h1>", unsafe_allow_html=True)
 
-# --- Welcome Voice ---
-if not st.session_state.welcome_done:
-    speak("Welcome to my app")
-    st.session_state.welcome_done = True
-    st.session_state.bird_stage = "fly-upload"
+# --- Step 0: Welcome ---
+if st.session_state["bird_step"] == 0:
+    step_speak("welcome_spoken", "Welcome to my app")
+    st.session_state["bird_step"] = 1
 
-# --- File Upload ---
+# --- Upload UI ---
 uploaded_file = st.file_uploader("📤 Upload Agreement (PDF)", type=["pdf"])
-if uploaded_file:
-    if not st.session_state.upload_done:
-        speak("Upload your document here")
-        time.sleep(1.5)
-        speak("Thank you. Processing your document.")
-        st.session_state.upload_done = True
-        st.session_state.bird_stage = "fly-audio"
 
-    # --- Read PDF ---
+# --- Step 1: After upload area is visible ---
+if st.session_state["bird_step"] == 1:
+    step_speak("upload_spoken", "Upload your document here")
+
+if uploaded_file:
+    # --- Step 2: Process file + summary
+    st.session_state["bird_step"] = 2
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
@@ -127,7 +82,6 @@ if uploaded_file:
     text = " ".join([page.get_text() for page in doc])
     text = re.sub(r'\s+', ' ', text)
 
-    # --- Extraction ---
     def smart_search(text, keywords):
         best = "Not specified"
         score = 0
@@ -171,13 +125,42 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
-    # --- Summary Voice ---
-    if not st.session_state.summary_done:
-        speak("Here is your output.")
-        st.session_state.summary_done = True
-
-    # --- Flip Card ---
+    # --- Display Flip Summary Card ---
     st.markdown(f"""
+    <style>
+    .card-flip {{
+      background: transparent;
+      width: 100%;
+      perspective: 1000px;
+      margin-top: 2rem;
+    }}
+    .card-inner {{
+      position: relative;
+      width: 100%;
+      transition: transform 1s;
+      transform-style: preserve-3d;
+    }}
+    .card-flip:hover .card-inner {{
+      transform: rotateY(180deg);
+    }}
+    .card-front, .card-back {{
+      position: absolute;
+      width: 100%;
+      backface-visibility: hidden;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 0 15px rgba(0,0,0,0.15);
+    }}
+    .card-front {{
+      background-color: #fff7d1;
+      color: #333;
+    }}
+    .card-back {{
+      background-color: #e1f5fe;
+      transform: rotateY(180deg);
+      color: #004d40;
+    }}
+    </style>
     <div class="card-flip">
       <div class="card-inner">
         <div class="card-front">
@@ -196,11 +179,10 @@ if uploaded_file:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Bird speaks when it lands on audio section ---
-    if st.session_state.bird_stage == "fly-audio":
-        speak("Click below to listen to summary")
+    # --- Speak when bird lands at summary audio section ---
+    step_speak("summary_spoken", "Click here to listen the summary. Thank you.")
 
-    # --- Audio Summary ---
+    # --- Summary Audio Player Below Card ---
     tts = gTTS(paragraph[:3900], lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as audio_file:
         tts.save(audio_file.name)
