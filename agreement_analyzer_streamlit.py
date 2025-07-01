@@ -45,7 +45,7 @@ def get_bird_position():
     elif st.session_state.bird_step == 1:
         return "top: 320px; left: 10px;"
     elif st.session_state.bird_step == 2:
-        return "top: 1850px; left: 160px;"
+        return "top: 2600px; left: 160px;"
     return "top: 30px; left: 30px;"
 
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
@@ -194,13 +194,33 @@ if st.session_state.bird_step == 1:
 
 if uploaded_file:
     st.session_state.bird_step = 2
+
+    # Summary section
+    summary_text = "This agreement is made on 1st July 2025 between ABC Corp and XYZ Ltd for the construction project. The scope includes full civil and electrical work. Estimated amount is ₹25,00,000 and timeline is 6 months."
+    translated_summary = GoogleTranslator(source='en', target='mr').translate(summary_text) if lang == "Marathi" else summary_text
+
+    st.markdown(f"""
+    <div class="flip-box">
+      <div class="flip-box-inner">
+        <div class="flip-box-front">
+            <h3 style="color:#003366;">📝 Tap to View Summary</h3>
+            <p>Hover to reveal summary details.</p>
+        </div>
+        <div class="flip-box-back">
+            <h3 style="color:#003366;">📋 Summary Details</h3>
+            <p>{textwrap.fill(translated_summary, 100)}</p>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Bird speaks after output shown ---
     bird_speak_once("summary", "Click below to listen to the summary. Thank you")
 
     # Audio Summary Output
-    summary_text = "This is your audio summary sample text for testing."  # replace this later with real extracted summary
     st.subheader("🎧 Audio Summary")
     try:
-        tts = gTTS(summary_text[:3900], lang='en')
+        tts = gTTS(translated_summary[:3900], lang='mr' if lang == "Marathi" else 'en')
         audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
         tts.save(audio_path)
         with open(audio_path, "rb") as f:
