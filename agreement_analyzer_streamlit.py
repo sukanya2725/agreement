@@ -187,17 +187,46 @@ if uploaded_file:
     c.setFont("Helvetica-Bold", 20)
     c.drawCentredString(width / 2, height - 80, f"Project Title: {project_name}")
 
-    c.setFont("Helvetica", 12)
+    c.setFont("Helvetica-Bold", 14)
     y = height - 120
-    for line in textwrap.wrap(paragraph, width=95):
-        c.drawString(inch, y, line)
-        y -= 18
+    fields = [
+        ("Agreement Date", date),
+        ("Parties Involved", parties),
+        ("Amount", amount),
+        ("Scope of Work", scope),
+        ("Duration", duration),
+    ]
+
+    for label, content in fields:
+        c.drawString(inch, y, f"{label}:")
+        y -= 16
+        for line in textwrap.wrap(content, width=95):
+            c.setFont("Helvetica", 12)
+            c.drawString(inch + 20, y, line)
+            y -= 14
+        y -= 10
         if y < inch:
             c.showPage()
             c.setLineWidth(2)
             c.setStrokeColor(black)
             c.rect(inch / 2, inch / 2, width - inch, height - inch)
+            y = height - inch
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(inch, y, "Key Clauses:")
+    y -= 16
+    for clause in clause_results:
+        clause_clean = re.sub('<.*?>', '', clause)
+        for line in textwrap.wrap(clause_clean, width=95):
             c.setFont("Helvetica", 12)
+            c.drawString(inch + 20, y, line)
+            y -= 14
+        y -= 8
+        if y < inch:
+            c.showPage()
+            c.setLineWidth(2)
+            c.setStrokeColor(black)
+            c.rect(inch / 2, inch / 2, width - inch, height - inch)
             y = height - inch
 
     c.save()
