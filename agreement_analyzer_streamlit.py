@@ -9,9 +9,15 @@ from rapidfuzz import fuzz
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# Track bird position
+# --- Track voice and bird stages ---
 if "bird_stage" not in st.session_state:
     st.session_state.bird_stage = "fly-header"
+if "welcome_done" not in st.session_state:
+    st.session_state.welcome_done = False
+if "upload_done" not in st.session_state:
+    st.session_state.upload_done = False
+if "summary_done" not in st.session_state:
+    st.session_state.summary_done = False
 
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
 
@@ -80,8 +86,12 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# 🐦 One Bird (position depends on stage)
-st.markdown(f"""<div class="bird {st.session_state.bird_stage}"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
+# 🐦 Bird HTML - transparent background
+st.markdown(f"""
+<div class="bird {st.session_state.bird_stage}" style="background: none !important;">
+    <img src="{bird_gif}" width="90" style="background: transparent !important;">
+</div>
+""", unsafe_allow_html=True)
 
 # --- Speak Function ---
 def speak(text):
@@ -100,19 +110,21 @@ def speak(text):
 # --- Header Title ---
 st.markdown("<h1 style='text-align:center; color:#2c3e50;'>📄 Agreement Analyzer</h1>", unsafe_allow_html=True)
 
-# 🐤 Welcome
-if st.session_state.bird_stage == "fly-header":
+# 🐤 Welcome Voice (only once)
+if not st.session_state.welcome_done:
     speak("Welcome to my app")
+    st.session_state.welcome_done = True
     st.session_state.bird_stage = "fly-upload"
 
 # 📤 Upload Step
 uploaded_file = st.file_uploader("📤 Upload Agreement (PDF)", type=["pdf"])
 if uploaded_file:
-    if st.session_state.bird_stage == "fly-upload":
+    if not st.session_state.upload_done:
         speak("Upload your document here")
+        time.sleep(1.5)
+        speak("Thank you. Processing your document.")
+        st.session_state.upload_done = True
         st.session_state.bird_stage = "fly-audio"
-
-    speak("Thank you. Processing your document.")
 
     # Save temp PDF
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -166,8 +178,10 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
-    # 🐤 Summary Output
-    speak("Here is your output. Click below to listen to summary. Thank you.")
+    # 🐤 Summary Output Voice (once)
+    if not st.session_state.summary_done:
+        speak("Here is your output. Click below to listen to summary. Thank you.")
+        st.session_state.summary_done = True
 
     # Flip Card Summary
     st.markdown(f"""
@@ -189,16 +203,18 @@ if uploaded_file:
     </div>
     """, unsafe_allow_html=True)
 
-    # 🎧 Summary Audio
+    # 🎧 Summary Audio just below card
     tts = gTTS(paragraph[:3900], lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as audio_file:
         tts.save(audio_file.name)
         with open(audio_file.name, "rb") as f:
             b64_audio = base64.b64encode(f.read()).decode()
-            st.markdown(f"""
-            <div style="margin-top:20px">
-                <audio controls>
-                    <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
-                </audio>
-            </div>
-            """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div style="margin-top:10px; text-align:center;">
+        <h4>🔉 Listen to the Summary</h4>
+        <audio controls>
+            <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
+        </audio>
+    </div>
+    """, unsafe_allow_html=True)
