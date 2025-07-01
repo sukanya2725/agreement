@@ -123,6 +123,18 @@ section[data-testid="stFileUploader"] > label:hover {
     border-radius: 10px;
     outline: none;
 }
+
+.bird-message {
+    background: #f9f9f9;
+    padding: 10px 20px;
+    margin: 15px 0;
+    border-left: 5px solid #ffb300;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 8px;
+    color: #4e342e;
+    animation: fadeInUp 0.5s ease-in-out;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -132,10 +144,14 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+st.markdown('<div class="bird-message">🐦 Hi! Please upload your agreement PDF to begin analysis.</div>', unsafe_allow_html=True)
+
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
 
 if uploaded_file:
+    st.markdown('<div class="bird-message">🐦 Thanks! Processing your document. Please wait...</div>', unsafe_allow_html=True)
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
@@ -187,6 +203,7 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
+    # Translation Section
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -208,6 +225,7 @@ if uploaded_file:
 
         final_text = translated_paragraph
         st.subheader("🈯 मराठी अनुवाद")
+        st.markdown('<div class="bird-message">🐦 हे बघा, तुमचं मराठी सारांश तयार आहे!</div>', unsafe_allow_html=True)
 
         st.markdown(f"""
         <div class="flip-box">
@@ -232,6 +250,7 @@ if uploaded_file:
         """, unsafe_allow_html=True)
     else:
         final_text = paragraph
+        st.markdown('<div class="bird-message">🐦 Here is your English summary below!</div>', unsafe_allow_html=True)
         st.markdown(f"""
         <div class="flip-box">
           <div class="flip-box-inner">
@@ -255,6 +274,7 @@ if uploaded_file:
         """, unsafe_allow_html=True)
 
     # Audio
+    st.markdown('<div class="bird-message">🐦 Click below to hear the audio summary!</div>', unsafe_allow_html=True)
     st.subheader("🎧 Audio Summary")
     try:
         tts = gTTS(final_text[:3900], lang='mr' if lang == "Marathi" else 'en')
