@@ -15,14 +15,6 @@ from reportlab.lib.colors import black
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# ✅ Show UI Design Image at Top
-if os.path.exists("ui_banner.png"):
-    st.image("ui_banner.png", use_container_width=True)
-elif os.path.exists("ui_banner.png.jpg"):
-    st.image("ui_banner.png.jpg", use_container_width=True)
-else:
-    st.warning("⚠️ 'ui_banner.png' not found. Please upload it in the same folder as your app.")
-
 # --- Custom Styling ---
 st.markdown("""
 <style>
@@ -102,8 +94,6 @@ st.markdown("""
 <h1 style="color:white;text-align:center;">📄 Agreement Analyzer </h1>
 </div>
 """, unsafe_allow_html=True)
-
-
 
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
