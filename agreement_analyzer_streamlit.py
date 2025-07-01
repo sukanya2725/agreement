@@ -8,9 +8,9 @@ import tempfile
 import base64
 from rapidfuzz import fuzz
 import textwrap
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from io import BytesIO
+
+# ✅ No need to use st.set_option for upload size
+# Set maxUploadSize = 1000 in `.streamlit/config.toml`
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 st.markdown("""
@@ -32,8 +32,13 @@ if uploaded_file:
 
     try:
         doc = fitz.open(pdf_path)
+
         all_text = []
         total_pages = len(doc)
+
+        if total_pages > 1000:
+            st.warning(f"⚠️ This PDF has {total_pages} pages. Processing may be slow.")
+
         progress_bar = st.progress(0)
 
         for i, page in enumerate(doc):
@@ -68,38 +73,58 @@ if uploaded_file:
                     if match_start != -1:
                         context_start = max(0, match_start - 30)
                         context_end = min(len(segment), match_start + len(keyword) + search_window)
-                        best_match = segment[context_start:context_end].strip()
+                        extracted_snippet = segment[context_start:context_end].strip()
+                        best_match = extracted_snippet
                     else:
                         best_match = segment.strip()
         return best_match
 
-    project_name = smart_search(text, ["project title", "name of work", "tender for"])
-    scope = smart_search(text, ["scope of work", "nature of work", "work includes"])
+    # --- Extract key details as before (same logic) ---
+
+    project_name = smart_search(text, ["project title", "name of work", "tender for"], 150)
+    scope = smart_search(text, ["scope of work", "work includes", "nature of work"], 250)
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
-    amount = smart_search(text, ["contract value", "estimated cost", "rupees"])
+
+    amount_sentence = smart_search(text, ["contract value", "rupees", "estimated cost"], 100)
+    amount_match = re.search(r'(?:Rs\.?|₹)?\s*[\d,]+(?:\.\d{1,2})?', amount_sentence)
+    amount = amount_match.group(0) if amount_match else amount_sentence
+
     parties = smart_search(text, ["between", "municipal corporation", "contractor"])
-    duration = smart_search(text, ["within", "completion period", "construction time"])
+    duration = smart_search(text, ["calendar months", "project completion time", "within"])
 
     clauses = {
         "Confidentiality": ["confidentiality", "non-disclosure"],
         "Termination": ["termination", "terminate"],
         "Dispute Resolution": ["arbitration", "dispute"],
         "Jurisdiction": ["jurisdiction", "court"],
-        "Force Majeure": ["force majeure", "natural events"],
+        "Force Majeure": ["force majeure", "act of god"],
         "Signatures": ["signed by", "signature"]
     }
 
     clause_results = []
-    for name, keywords in clauses.items():
-        found = smart_search(text, keywords)
-        clause_results.append(f"✅ {name}" if found != "Not specified" else f"❌ {name}")
+    for name, keys in clauses.items():
+        result = smart_search(text, keys)
+        clause_results.append(f"✅ {name}" if result != "Not specified" else f"❌ {name}")
 
-    paragraph = f"This agreement is made between {parties} on {date} for the project: {project_name}, covering: {scope}. Contract value: {amount}, Duration: {duration}."
-    included = [c[2:] for c in clause_results if c.startswith("✅")]
-    if included:
-        paragraph += " Clauses included: " + ", ".join(included) + "."
+    # Summary
+    paragraph = "This agreement"
+    if parties != "Not specified":
+        paragraph += f" is made between {parties}"
+    if date != "Not specified":
+        paragraph += f" on {date}"
+    if project_name != "Not specified":
+        paragraph += f" for the project: {project_name}"
+    if scope != "Not specified":
+        paragraph += f", covering: {scope}"
+    if amount != "Not specified":
+        paragraph += f". The contract value is {amount}"
+    if duration != "Not specified":
+        paragraph += f", with a duration of {duration}."
+    if any(c.startswith("✅") for c in clause_results):
+        paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
+    # Display Summary
     st.subheader("📑 Extracted Summary")
     st.markdown(f"""
     <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
@@ -114,7 +139,7 @@ if uploaded_file:
     </div>
     """, unsafe_allow_html=True)
 
-    # Translation
+    # Translate if needed
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -129,50 +154,25 @@ if uploaded_file:
     else:
         final_text = paragraph
 
-    # Audio Summary
+    # Audio
     st.subheader("🎧 Audio Summary")
     try:
-        tts = gTTS(final_text[:3900], lang='mr' if lang == "Marathi" else 'en')
+        max_chars = 3900
+        trimmed_text = final_text[:max_chars] + "..." if len(final_text) > max_chars else final_text
+        tts = gTTS(trimmed_text, lang='mr' if lang == "Marathi" else 'en')
         audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
         tts.save(audio_path)
         with open(audio_path, "rb") as audio_file:
             audio_bytes = audio_file.read()
             b64 = base64.b64encode(audio_bytes).decode()
-            st.markdown(f"""
+            audio_html = f"""
                 <audio controls style='width:100%'>
                     <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
                     Your browser does not support the audio element.
                 </audio>
-            """, unsafe_allow_html=True)
+            """
+            st.markdown(audio_html, unsafe_allow_html=True)
         st.success("✅ Audio generated successfully!")
     except Exception as e:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
-
-    # Downloadable PDF Summary
-    st.subheader("📥 Download PDF Summary")
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    c.setFont("Helvetica", 12)
-    margin = 50
-    y = height - margin
-
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margin, y, "Agreement Summary")
-    y -= 30
-
-    for line in textwrap.wrap(paragraph, 100):
-        if y < margin:
-            c.showPage()
-            c.setFont("Helvetica", 12)
-            y = height - margin
-        c.drawString(margin, y, line)
-        y -= 20
-
-    c.save()
-    buffer.seek(0)
-
-    b64_pdf = base64.b64encode(buffer.read()).decode()
-    href = f'<a href="data:application/octet-stream;base64,{b64_pdf}" download="agreement_summary.pdf">📥 Download PDF</a>'
-    st.markdown(href, unsafe_allow_html=True)
