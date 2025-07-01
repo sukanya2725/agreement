@@ -9,16 +9,73 @@ import base64
 from rapidfuzz import fuzz
 import textwrap
 
-# ✅ No need to use st.set_option for upload size
-# Set maxUploadSize = 1000 in `.streamlit/config.toml`
+st.set_page_config(page_title="Agreement Analyzer PRO", layout="centered")
 
-st.set_page_config(page_title="Agreement Analyzer", layout="centered")
+# --- Custom CSS Styling ---
 st.markdown("""
-<div style="background-color:#003366;padding:15px;border-radius:10px">
-<h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1>
-</div>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Roboto', sans-serif;
+        background-color: #f4f6f8;
+    }
+
+    .main-title {
+        background-color: #003366;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        color: white;
+        margin-bottom: 20px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    }
+
+    .card {
+        background-color: #ffffff;
+        padding: 15px 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0px 3px 6px rgba(0,0,0,0.05);
+    }
+
+    .card-title {
+        color: #003366;
+        font-weight: bold;
+        font-size: 18px;
+        margin-bottom: 5px;
+    }
+
+    .summary-box {
+        background: #e6f0ff;
+        padding: 15px;
+        border-radius: 10px;
+        font-size: 16px;
+        margin-top: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .download-link a {
+        background-color: #003366;
+        color: white !important;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: bold;
+        display: inline-block;
+        transition: 0.3s ease;
+    }
+
+    .download-link a:hover {
+        background-color: #002244;
+    }
+    </style>
 """, unsafe_allow_html=True)
 
+# --- Main Heading ---
+st.markdown('<div class="main-title"><h1>📄 Agreement Analyzer PRO</h1></div>', unsafe_allow_html=True)
+
+# --- File Upload ---
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
 
@@ -27,12 +84,10 @@ if uploaded_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
 
-    st.markdown("<hr>", unsafe_allow_html=True)
     st.info("🔍 Extracting and analyzing text...")
 
     try:
         doc = fitz.open(pdf_path)
-
         all_text = []
         total_pages = len(doc)
 
@@ -40,7 +95,6 @@ if uploaded_file:
             st.warning(f"⚠️ This PDF has {total_pages} pages. Processing may be slow.")
 
         progress_bar = st.progress(0)
-
         for i, page in enumerate(doc):
             page_text = page.get_text().replace('\n', ' ').strip()
             all_text.append(page_text)
@@ -73,23 +127,18 @@ if uploaded_file:
                     if match_start != -1:
                         context_start = max(0, match_start - 30)
                         context_end = min(len(segment), match_start + len(keyword) + search_window)
-                        extracted_snippet = segment[context_start:context_end].strip()
-                        best_match = extracted_snippet
+                        best_match = segment[context_start:context_end].strip()
                     else:
                         best_match = segment.strip()
         return best_match
-
-    # --- Extract key details as before (same logic) ---
 
     project_name = smart_search(text, ["project title", "name of work", "tender for"], 150)
     scope = smart_search(text, ["scope of work", "work includes", "nature of work"], 250)
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
     date = date_match.group(0) if date_match else "Not specified"
-
     amount_sentence = smart_search(text, ["contract value", "rupees", "estimated cost"], 100)
     amount_match = re.search(r'(?:Rs\.?|₹)?\s*[\d,]+(?:\.\d{1,2})?', amount_sentence)
     amount = amount_match.group(0) if amount_match else amount_sentence
-
     parties = smart_search(text, ["between", "municipal corporation", "contractor"])
     duration = smart_search(text, ["calendar months", "project completion time", "within"])
 
@@ -101,45 +150,28 @@ if uploaded_file:
         "Force Majeure": ["force majeure", "act of god"],
         "Signatures": ["signed by", "signature"]
     }
+    clause_results = [f"✅ {name}" if smart_search(text, keys) != "Not specified" else f"❌ {name}" for name, keys in clauses.items()]
 
-    clause_results = []
-    for name, keys in clauses.items():
-        result = smart_search(text, keys)
-        clause_results.append(f"✅ {name}" if result != "Not specified" else f"❌ {name}")
-
-    # Summary
     paragraph = "This agreement"
-    if parties != "Not specified":
-        paragraph += f" is made between {parties}"
-    if date != "Not specified":
-        paragraph += f" on {date}"
-    if project_name != "Not specified":
-        paragraph += f" for the project: {project_name}"
-    if scope != "Not specified":
-        paragraph += f", covering: {scope}"
-    if amount != "Not specified":
-        paragraph += f". The contract value is {amount}"
-    if duration != "Not specified":
-        paragraph += f", with a duration of {duration}."
-    if any(c.startswith("✅") for c in clause_results):
-        paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
+    if parties != "Not specified": paragraph += f" is made between {parties}"
+    if date != "Not specified": paragraph += f" on {date}"
+    if project_name != "Not specified": paragraph += f" for the project: {project_name}"
+    if scope != "Not specified": paragraph += f", covering: {scope}"
+    if amount != "Not specified": paragraph += f". The contract value is {amount}"
+    if duration != "Not specified": paragraph += f", with a duration of {duration}."
+    included_clauses = [c[2:] for c in clause_results if c.startswith("✅")]
+    if included_clauses: paragraph += " Clauses include: " + ", ".join(included_clauses) + "."
 
-    # Display Summary
-    st.subheader("📑 Extracted Summary")
-    st.markdown(f"""
-    <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
-    <p><b>📌 Project Name:</b> {textwrap.fill(project_name, 100)}</p>
-    <p><b>📅 Agreement Date:</b> {date}</p>
-    <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
-    <p><b>💰 Amount:</b> {textwrap.fill(amount, 100)}</p>
-    <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
-    <p><b>⏱ Duration:</b> {duration}</p>
-    <br><b>🧾 Legal Clauses:</b><br>{"<br>".join(clause_results)}
-    <br><br><b>🧠 Summary Paragraph:</b><br>{textwrap.fill(paragraph, 100)}
-    </div>
-    """, unsafe_allow_html=True)
+    # --- Output Cards ---
+    st.markdown(f'<div class="card"><div class="card-title">📌 Project Name</div>{project_name}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="card-title">📅 Agreement Date</div>{date}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="card-title">👥 Parties Involved</div>{parties}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="card-title">💰 Amount</div>{amount}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="card-title">📦 Scope of Work</div>{scope}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="card-title">⏱ Duration</div>{duration}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card"><div class="card-title">🧾 Legal Clauses</div>{"<br>".join(clause_results)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card summary-box"><div class="card-title">🧠 Summary Paragraph</div>{paragraph}</div>', unsafe_allow_html=True)
 
-    # Translate if needed
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -154,7 +186,7 @@ if uploaded_file:
     else:
         final_text = paragraph
 
-    # Audio
+    # --- Audio ---
     st.subheader("🎧 Audio Summary")
     try:
         max_chars = 3900
@@ -176,3 +208,30 @@ if uploaded_file:
     except Exception as e:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
+
+    # --- Download PDF Summary ---
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    pdf_download_path = os.path.join(tempfile.gettempdir(), "agreement_summary.pdf")
+    c = canvas.Canvas(pdf_download_path, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(100, height - 100, "Project Title: " + project_name)
+    c.setFont("Helvetica", 12)
+    y = height - 150
+    for line in textwrap.wrap(paragraph, width=100):
+        c.drawString(50, y, line)
+        y -= 20
+        if y < 50:
+            c.showPage()
+            y = height - 50
+
+    c.save()
+
+    with open(pdf_download_path, "rb") as f:
+        pdf_bytes = f.read()
+        b64 = base64.b64encode(pdf_bytes).decode()
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="agreement_summary.pdf">📥 Download PDF Summary</a>'
+        st.markdown(f'<div class="download-link">{href}</div>', unsafe_allow_html=True)
