@@ -1,7 +1,6 @@
 streamlit
-pytesseract
 pymupdf
-gtts
+gTTS
+deep_translator
 rapidfuzz
-deep-translator
-Pillow
+reportlab
