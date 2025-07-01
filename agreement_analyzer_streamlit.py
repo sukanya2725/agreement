@@ -8,6 +8,10 @@ import tempfile
 import base64
 from rapidfuzz import fuzz
 import textwrap
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+from reportlab.lib.colors import black
 
 st.set_page_config(page_title="Agreement Analyzer PRO", layout="centered")
 
@@ -72,10 +76,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Main Heading ---
 st.markdown('<div class="main-title"><h1>📄 Agreement Analyzer PRO</h1></div>', unsafe_allow_html=True)
 
-# --- File Upload ---
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
 
@@ -162,76 +164,33 @@ if uploaded_file:
     included_clauses = [c[2:] for c in clause_results if c.startswith("✅")]
     if included_clauses: paragraph += " Clauses include: " + ", ".join(included_clauses) + "."
 
-    # --- Output Cards ---
-    st.markdown(f'<div class="card"><div class="card-title">📌 Project Name</div>{project_name}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card"><div class="card-title">📅 Agreement Date</div>{date}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card"><div class="card-title">👥 Parties Involved</div>{parties}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card"><div class="card-title">💰 Amount</div>{amount}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card"><div class="card-title">📦 Scope of Work</div>{scope}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card"><div class="card-title">⏱ Duration</div>{duration}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card"><div class="card-title">🧾 Legal Clauses</div>{"<br>".join(clause_results)}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="card summary-box"><div class="card-title">🧠 Summary Paragraph</div>{paragraph}</div>', unsafe_allow_html=True)
 
-    if lang == "Marathi":
-        st.info("🌐 Translating to Marathi...")
-        try:
-            translated = GoogleTranslator(source='auto', target='mr').translate(paragraph[:4000])
-        except Exception as e:
-            st.error("❌ Marathi translation failed.")
-            st.exception(e)
-            translated = paragraph
-        final_text = translated
-        st.subheader("🈯 Marathi Translation")
-        st.text_area("Translated Output", final_text, height=300)
-    else:
-        final_text = paragraph
-
-    # --- Audio ---
-    st.subheader("🎧 Audio Summary")
-    try:
-        max_chars = 3900
-        trimmed_text = final_text[:max_chars] + "..." if len(final_text) > max_chars else final_text
-        tts = gTTS(trimmed_text, lang='mr' if lang == "Marathi" else 'en')
-        audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
-        tts.save(audio_path)
-        with open(audio_path, "rb") as audio_file:
-            audio_bytes = audio_file.read()
-            b64 = base64.b64encode(audio_bytes).decode()
-            audio_html = f"""
-                <audio controls style='width:100%'>
-                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                    Your browser does not support the audio element.
-                </audio>
-            """
-            st.markdown(audio_html, unsafe_allow_html=True)
-        st.success("✅ Audio generated successfully!")
-    except Exception as e:
-        st.error("❌ Failed to generate audio.")
-        st.exception(e)
-
-    # --- Download PDF Summary ---
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-
-    pdf_download_path = os.path.join(tempfile.gettempdir(), "agreement_summary.pdf")
-    c = canvas.Canvas(pdf_download_path, pagesize=A4)
+    # --- PDF with border ---
+    pdf_path = os.path.join(tempfile.gettempdir(), "styled_summary.pdf")
+    c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(100, height - 100, "Project Title: " + project_name)
+    # Border rectangle
+    c.setLineWidth(2)
+    c.setStrokeColor(black)
+    c.rect(inch/2, inch/2, width - inch, height - inch)
+
+    c.setFont("Helvetica-Bold", 18)
+    c.drawCentredString(width / 2, height - 80, f"Project Title: {project_name}")
     c.setFont("Helvetica", 12)
-    y = height - 150
-    for line in textwrap.wrap(paragraph, width=100):
-        c.drawString(50, y, line)
-        y -= 20
-        if y < 50:
+
+    y = height - 120
+    for line in textwrap.wrap(paragraph, width=95):
+        c.drawString(inch, y, line)
+        y -= 18
+        if y < inch:
             c.showPage()
-            y = height - 50
+            c.rect(inch/2, inch/2, width - inch, height - inch)
+            y = height - inch
 
     c.save()
 
-    with open(pdf_download_path, "rb") as f:
-        pdf_bytes = f.read()
-        b64 = base64.b64encode(pdf_bytes).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="agreement_summary.pdf">📥 Download PDF Summary</a>'
-        st.markdown(f'<div class="download-link">{href}</div>', unsafe_allow_html=True)
+    with open(pdf_path, "rb") as f:
+        b64_pdf = base64.b64encode(f.read()).decode()
+        st.markdown(f'<div class="download-link"><a href="data:application/pdf;base64,{b64_pdf}" download="styled_summary.pdf">📥 Download Summary PDF with Border</a></div>', unsafe_allow_html=True)
