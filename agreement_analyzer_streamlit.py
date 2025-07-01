@@ -129,7 +129,8 @@ if uploaded_file:
                     if match_start != -1:
                         context_start = max(0, match_start - 30)
                         context_end = min(len(segment), match_start + len(keyword) + search_window)
-                        best_match = segment[context_start:context_end].strip()
+                        extracted_snippet = segment[context_start:context_end].strip()
+                        best_match = extracted_snippet
                     else:
                         best_match = segment.strip()
         return best_match
@@ -152,7 +153,14 @@ if uploaded_file:
         "Force Majeure": ["force majeure", "act of god"],
         "Signatures": ["signed by", "signature"]
     }
-    clause_results = [f"✅ {name}" if smart_search(text, keys) != "Not specified" else f"❌ {name}" for name, keys in clauses.items()]
+
+    clause_results = []
+    for name, keys in clauses.items():
+        result = smart_search(text, keys)
+        if result != "Not specified":
+            clause_results.append(f"📌 <b>{name}</b>: {result}")
+        else:
+            clause_results.append(f"❌ <b>{name}</b>: Not found")
 
     paragraph = "This agreement"
     if parties != "Not specified": paragraph += f" is made between {parties}"
@@ -161,32 +169,35 @@ if uploaded_file:
     if scope != "Not specified": paragraph += f", covering: {scope}"
     if amount != "Not specified": paragraph += f". The contract value is {amount}"
     if duration != "Not specified": paragraph += f", with a duration of {duration}."
-    included_clauses = [c[2:] for c in clause_results if c.startswith("✅")]
-    if included_clauses: paragraph += " Clauses include: " + ", ".join(included_clauses) + "."
+    if clause_results: paragraph += "\n\nKey Clauses:\n" + "\n".join(re.sub('<.*?>', '', c) for c in clause_results)
 
     st.markdown(f'<div class="card summary-box"><div class="card-title">🧠 Summary Paragraph</div>{paragraph}</div>', unsafe_allow_html=True)
 
-    # --- PDF with border ---
+    for clause in clause_results:
+        st.markdown(f'<div class="card">{clause}</div>', unsafe_allow_html=True)
+
     pdf_path = os.path.join(tempfile.gettempdir(), "styled_summary.pdf")
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    # Border rectangle
     c.setLineWidth(2)
     c.setStrokeColor(black)
-    c.rect(inch/2, inch/2, width - inch, height - inch)
+    c.rect(inch / 2, inch / 2, width - inch, height - inch)
 
-    c.setFont("Helvetica-Bold", 18)
+    c.setFont("Helvetica-Bold", 20)
     c.drawCentredString(width / 2, height - 80, f"Project Title: {project_name}")
-    c.setFont("Helvetica", 12)
 
+    c.setFont("Helvetica", 12)
     y = height - 120
     for line in textwrap.wrap(paragraph, width=95):
         c.drawString(inch, y, line)
         y -= 18
         if y < inch:
             c.showPage()
-            c.rect(inch/2, inch/2, width - inch, height - inch)
+            c.setLineWidth(2)
+            c.setStrokeColor(black)
+            c.rect(inch / 2, inch / 2, width - inch, height - inch)
+            c.setFont("Helvetica", 12)
             y = height - inch
 
     c.save()
