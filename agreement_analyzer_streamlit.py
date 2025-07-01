@@ -77,6 +77,43 @@ section[data-testid="stFileUploader"] > label:hover {
     background: linear-gradient(135deg, #f4511e, #ffa726);
 }
 
+.flip-box {
+  background-color: transparent;
+  width: 100%;
+  perspective: 1000px;
+}
+
+.flip-box-inner {
+  position: relative;
+  width: 100%;
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+}
+
+.flip-box:hover .flip-box-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-box-front, .flip-box-back {
+  position: relative;
+  width: 100%;
+  backface-visibility: hidden;
+  border-radius: 15px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  padding: 25px;
+}
+
+.flip-box-front {
+  background-color: #fffde7;
+  color: black;
+}
+
+.flip-box-back {
+  background-color: #ffecb3;
+  color: black;
+  transform: rotateY(180deg);
+}
+
 [data-testid="stMarkdownContainer"] > div {
     animation: fadeInUp 0.7s ease;
 }
@@ -86,45 +123,16 @@ section[data-testid="stFileUploader"] > label:hover {
     border-radius: 10px;
     outline: none;
 }
-
-.sticky-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    background: linear-gradient(to right, #003366, #004d66);
-    color: white;
-    padding: 12px 20px;
-    z-index: 1000;
-    text-align: center;
-    font-size: 22px;
-    font-weight: bold;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-.fixed-audio {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
-    width: 90%;
-    background: #fff3cd;
-    padding: 12px;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-}
-.fixed-audio audio {
-    width: 100%;
-}
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<div class="sticky-header">
-    📄 Agreement Analyzer
+<div style="background-color:#003366;padding:15px;border-radius:10px">
+<h1 style="color:white;text-align:center;">📄 Agreement Analyzer </h1>
 </div>
-<br><br><br>
 """, unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("📄 Upload a PDF Agreement", type=["pdf"])
+uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
 
 if uploaded_file:
@@ -189,7 +197,7 @@ if uploaded_file:
     date = date_match.group(0) if date_match else "Not specified"
 
     amount_sentence = smart_search(text, ["contract value", "rupees", "estimated cost"], 100)
-    amount_match = re.search(r'(?:Rs\.?|\u20b9)?\s*[\d,]+(?:\.\d{1,2})?', amount_sentence)
+    amount_match = re.search(r'(?:Rs\.?|₹)?\s*[\d,]+(?:\.\d{1,2})?', amount_sentence)
     amount = amount_match.group(0) if amount_match else amount_sentence
 
     parties = smart_search(text, ["between", "municipal corporation", "contractor"])
@@ -225,20 +233,30 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
+    # Flip box styled summary
     st.markdown(f"""
-    <div style="font-size:17px; background:#ffffff; padding:20px; border-radius:15px; box-shadow:0px 4px 15px rgba(0,0,0,0.1); margin-top:20px">
-    <h3 style="color:#003366;">📜 Summary Details</h3>
-    <p><b>📌 Project Name:</b> {textwrap.fill(project_name, 100)}</p>
-    <p><b>🗓 Agreement Date:</b> {date}</p>
-    <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
-    <p><b>💰 Amount:</b> {textwrap.fill(amount, 100)}</p>
-    <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
-    <p><b>⏱ Duration:</b> {duration}</p>
-    <br><b>📟 Legal Clauses:</b><br>{"<br>".join(clause_results)}
-    <br><br><b>🧠 Summary Paragraph:</b><br>{textwrap.fill(paragraph, 100)}
+    <div class="flip-box">
+      <div class="flip-box-inner">
+        <div class="flip-box-front">
+            <h3 style="color:#003366;">📝 Tap to View Summary</h3>
+            <p>Hover to reveal summary details.</p>
+        </div>
+        <div class="flip-box-back">
+            <h3 style="color:#003366;">📋 Summary Details</h3>
+            <p><b>📌 Project Name:</b> {textwrap.fill(project_name, 100)}</p>
+            <p><b>📅 Agreement Date:</b> {date}</p>
+            <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
+            <p><b>💰 Amount:</b> {textwrap.fill(amount, 100)}</p>
+            <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
+            <p><b>⏱ Duration:</b> {duration}</p>
+            <br><b>🧾 Legal Clauses:</b><br>{"<br>".join(clause_results)}
+            <br><br><b>🧠 Summary Paragraph:</b><br>{textwrap.fill(paragraph, 100)}
+        </div>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
+    # Translation
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -248,23 +266,22 @@ if uploaded_file:
             st.exception(e)
             translated = paragraph
         final_text = translated
-        st.subheader("🇮 Marathi Translation")
+        st.subheader("🈯 Marathi Translation")
         st.text_area("Translated Output", final_text, height=300)
     else:
         final_text = paragraph
 
-    st.subheader("🎿 Audio Summary")
+    # Audio
+    st.subheader("🎧 Audio Summary")
     try:
-        max_chars = 3900
-        trimmed_text = final_text[:max_chars] + "..." if len(final_text) > max_chars else final_text
+        trimmed_text = final_text[:3900] + "..." if len(final_text) > 3900 else final_text
         tts = gTTS(trimmed_text, lang='mr' if lang == "Marathi" else 'en')
         audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
         tts.save(audio_path)
         with open(audio_path, "rb") as audio_file:
-            audio_bytes = audio_file.read()
-            b64 = base64.b64encode(audio_bytes).decode()
+            b64 = base64.b64encode(audio_file.read()).decode()
             audio_html = f"""
-                <div class='fixed-audio'>
+                <div class='audio-container'>
                     <audio controls>
                         <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
                         Your browser does not support the audio element.
@@ -277,6 +294,7 @@ if uploaded_file:
         st.error("❌ Failed to generate audio.")
         st.exception(e)
 
+    # PDF download
     summary_pdf_path = os.path.join(tempfile.gettempdir(), "agreement_summary_with_border.pdf")
     c = canvas.Canvas(summary_pdf_path, pagesize=A4)
     width, height = A4
@@ -304,5 +322,5 @@ if uploaded_file:
 
     with open(summary_pdf_path, "rb") as f:
         b64_pdf = base64.b64encode(f.read()).decode()
-        download_link = f'<a href="data:application/pdf;base64,{b64_pdf}" download="agreement_summary.pdf">📅 Download Summary PDF with Border</a>'
+        download_link = f'<a href="data:application/pdf;base64,{b64_pdf}" download="agreement_summary.pdf">📥 Download Summary PDF with Border</a>'
         st.markdown(download_link, unsafe_allow_html=True)
