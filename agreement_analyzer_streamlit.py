@@ -15,6 +15,9 @@ from reportlab.lib.colors import black
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
+# ✅ Show UI Design Image at Top
+st.image("ui_banner.png", use_column_width=True)
+
 # --- Custom Styling ---
 st.markdown("""
 <style>
@@ -59,7 +62,6 @@ h1, h2, h3 {
     border-radius: 10px;
 }
 
-/* Enhanced file uploader box */
 section[data-testid="stFileUploader"] > label {
     display: block;
     background: #ffffff;
