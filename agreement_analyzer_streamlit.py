@@ -9,43 +9,79 @@ from rapidfuzz import fuzz
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# ✅ Duolingo Bird GIF
+# Track bird position
+if "bird_stage" not in st.session_state:
+    st.session_state.bird_stage = "fly-header"
+
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
 
-# --- CSS for bird movement ---
+# --- CSS Styling: Bird + Flip Card ---
 st.markdown(f"""
 <style>
 .bird {{
     position: absolute;
     width: 90px;
     z-index: 999;
-    animation-duration: 2.5s;
 }}
 
 .fly-header {{
     top: 20px; left: 30px;
 }}
 
-.fly-upload {{
-    animation-name: flyToUpload;
-}}
-
-.fly-audio {{
-    animation-name: flyToAudio;
-}}
-
 @keyframes flyToUpload {{
   0% {{ top: 20px; left: 30px; }}
-  100% {{ top: 300px; left: 120px; }}
+  100% {{ top: 270px; left: 160px; }}
+}}
+.fly-upload {{
+    animation: flyToUpload 2s forwards;
 }}
 
 @keyframes flyToAudio {{
-  0% {{ top: 300px; left: 120px; }}
-  100% {{ top: 680px; left: 150px; }}
+  0% {{ top: 270px; left: 160px; }}
+  100% {{ top: 780px; left: 160px; }}
+}}
+.fly-audio {{
+    animation: flyToAudio 2s forwards;
 }}
 
+/* Flip Card Styling */
+.card-flip {{
+  background: transparent;
+  width: 100%;
+  perspective: 1000px;
+  margin-top: 2rem;
+}}
+.card-inner {{
+  position: relative;
+  width: 100%;
+  transition: transform 1s;
+  transform-style: preserve-3d;
+}}
+.card-flip:hover .card-inner {{
+  transform: rotateY(180deg);
+}}
+.card-front, .card-back {{
+  position: absolute;
+  width: 100%;
+  backface-visibility: hidden;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 0 15px rgba(0,0,0,0.15);
+}}
+.card-front {{
+  background-color: #fff7d1;
+  color: #333;
+}}
+.card-back {{
+  background-color: #e1f5fe;
+  transform: rotateY(180deg);
+  color: #004d40;
+}}
 </style>
 """, unsafe_allow_html=True)
+
+# 🐦 One Bird (position depends on stage)
+st.markdown(f"""<div class="bird {st.session_state.bird_stage}"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
 
 # --- Speak Function ---
 def speak(text):
@@ -54,33 +90,31 @@ def speak(text):
         tts.save(fp.name)
         with open(fp.name, "rb") as audio_file:
             b64 = base64.b64encode(audio_file.read()).decode()
-            audio_html = f"""
+            st.markdown(f"""
             <audio autoplay>
                 <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
             </audio>
-            """
-            st.markdown(audio_html, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
     time.sleep(2)
 
-# --- App Header ---
+# --- Header Title ---
 st.markdown("<h1 style='text-align:center; color:#2c3e50;'>📄 Agreement Analyzer</h1>", unsafe_allow_html=True)
 
-# --- Bird Step 1: Welcome ---
-st.markdown(f"""<div class="bird fly-header"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
-speak("Welcome to my app")
-time.sleep(1)
+# 🐤 Welcome
+if st.session_state.bird_stage == "fly-header":
+    speak("Welcome to my app")
+    st.session_state.bird_stage = "fly-upload"
 
-# --- Bird Step 2: Fly to Upload Button ---
-st.markdown(f"""<div class="bird fly-upload"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
-speak("Upload your document here")
-time.sleep(1)
-
-# --- File Upload ---
+# 📤 Upload Step
 uploaded_file = st.file_uploader("📤 Upload Agreement (PDF)", type=["pdf"])
-
 if uploaded_file:
+    if st.session_state.bird_stage == "fly-upload":
+        speak("Upload your document here")
+        st.session_state.bird_stage = "fly-audio"
+
     speak("Thank you. Processing your document.")
 
+    # Save temp PDF
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
@@ -132,26 +166,30 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
-    # --- Bird Step 3: Fly to Audio Section ---
-    st.markdown(f"""<div class="bird fly-audio"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
+    # 🐤 Summary Output
     speak("Here is your output. Click below to listen to summary. Thank you.")
-    time.sleep(1)
 
-    # --- Display Summary ---
+    # Flip Card Summary
     st.markdown(f"""
-    <div style="background:#fff7d1;padding:1.2rem;border-radius:10px;margin-top:1rem">
-        <h3 style="color:#003366">📌 Project:</h3><p>{project_name}</p>
-        <h3 style="color:#003366">📅 Date:</h3><p>{date}</p>
-        <h3 style="color:#003366">👥 Parties:</h3><p>{parties}</p>
-        <h3 style="color:#003366">💰 Amount:</h3><p>{amount}</p>
-        <h3 style="color:#003366">📦 Scope:</h3><p>{scope}</p>
-        <h3 style="color:#003366">⏱ Duration:</h3><p>{duration}</p>
-        <h3 style="color:#003366">🧾 Clauses:</h3><p>{'<br>'.join(clause_results)}</p>
-        <h3 style="color:#003366">🧠 Summary:</h3><p>{paragraph}</p>
+    <div class="card-flip">
+      <div class="card-inner">
+        <div class="card-front">
+            <h3>📌 Project:</h3><p>{project_name}</p>
+            <h3>📅 Date:</h3><p>{date}</p>
+            <h3>👥 Parties:</h3><p>{parties}</p>
+            <h3>💰 Amount:</h3><p>{amount}</p>
+            <h3>📦 Scope:</h3><p>{scope}</p>
+            <h3>⏱ Duration:</h3><p>{duration}</p>
+        </div>
+        <div class="card-back">
+            <h3>🧾 Clauses:</h3><p>{'<br>'.join(clause_results)}</p>
+            <h3>🧠 Summary:</h3><p>{paragraph}</p>
+        </div>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Play Summary Audio ---
+    # 🎧 Summary Audio
     tts = gTTS(paragraph[:3900], lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as audio_file:
         tts.save(audio_file.name)
