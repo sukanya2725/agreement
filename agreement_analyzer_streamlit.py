@@ -37,15 +37,15 @@ def bird_speak_once(voice_id, message):
                 """, unsafe_allow_html=True)
         st.session_state.bird_said.add(voice_id)
 
-# Bird positioning
+# Bird position logic
 
 def get_bird_position():
     if st.session_state.bird_step == 0:
-        return "top: 30px; left: 40px;"
+        return "top: 20px; left: 30px;"
     elif st.session_state.bird_step == 1:
-        return "top: 320px; left: 160px;"
+        return "top: 260px; left: 120px;"
     elif st.session_state.bird_step == 2:
-        return "top: 1600px; left: 160px;"
+        return "top: 1700px; left: 160px;"
     return "top: 30px; left: 30px;"
 
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
@@ -194,4 +194,3 @@ if st.session_state.bird_step == 1:
 
 if uploaded_file:
     st.session_state.bird_step = 2
-    bird_speak_once("summary", "Click below to listen to the summary. Thank you")
