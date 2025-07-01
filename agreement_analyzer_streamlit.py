@@ -82,7 +82,7 @@ section[data-testid="stFileUploader"] > label:hover {
 
 st.markdown("""
 <div style="background-color:#003366;padding:15px;border-radius:10px">
-<h1 style="color:white;text-align:center;">📄 Agreement Analyzer PRO</h1>
+<h1 style="color:white;text-align:center;">📄 Agreement Analyzer </h1>
 </div>
 """, unsafe_allow_html=True)
 
