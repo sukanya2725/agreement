@@ -4,47 +4,46 @@ import base64
 from gtts import gTTS
 import tempfile
 
-st.set_page_config(page_title="Flying Bird UI", layout="centered")
+st.set_page_config(page_title="Flying Duolingo Bird Assistant", layout="centered")
 
-bird_gif = "https://cdn.pixabay.com/animation/2023/01/24/20/21/20-21-56-279_512.gif"
+# ✅ Your Duolingo flying bird GIF
+bird_gif = "https://media.gifdb.com/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
 
-# --- CSS for animated bird ---
+# --- CSS Animation + Bird Styles ---
 st.markdown(f"""
 <style>
 .bird {{
     position: absolute;
-    width: 60px;
+    width: 90px;
     z-index: 999;
-    animation-duration: 2s;
-    animation-fill-mode: forwards;
 }}
-@keyframes fly1 {{
-  0% {{ transform: translate(0px, 0px); }}
-  100% {{ transform: translate(150px, 20px); }}
+@keyframes fly {{
+  0% {{ transform: translate(0px, 0px); opacity: 1; }}
+  100% {{ transform: translate(200px, 100px); opacity: 0; }}
 }}
-@keyframes fly2 {{
-  0% {{ transform: translate(150px, 20px); }}
-  100% {{ transform: translate(300px, 100px); }}
+.fly {{
+    animation: fly 2s ease-in-out forwards;
 }}
-@keyframes fly3 {{
-  0% {{ transform: translate(300px, 100px); }}
-  100% {{ transform: translate(450px, 160px); }}
-}}
-.fly-step-1 {{ animation-name: fly1; }}
-.fly-step-2 {{ animation-name: fly2; animation-delay: 2s; }}
-.fly-step-3 {{ animation-name: fly3; animation-delay: 4s; }}
+
 .bird-message {{
-    margin-top: 120px;
-    padding: 10px;
+    margin-top: 140px;
+    padding: 12px;
     background-color: #fff8dc;
     border-left: 5px solid orange;
-    border-radius: 8px;
+    border-radius: 10px;
     font-weight: bold;
+    color: #4e342e;
+    animation: fadeIn 0.5s ease-in;
+}}
+
+@keyframes fadeIn {{
+  0% {{ opacity: 0; }}
+  100% {{ opacity: 1; }}
 }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- Speak Function ---
+# --- Bird speaks using gTTS ---
 def speak(text):
     tts = gTTS(text, lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
@@ -53,29 +52,28 @@ def speak(text):
             b64 = base64.b64encode(audio_file.read()).decode()
             audio_html = f"""
             <audio autoplay>
-            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
             </audio>
             """
             st.markdown(audio_html, unsafe_allow_html=True)
-    time.sleep(3)
+    time.sleep(2)
 
-# --- Step 1: Upload instruction ---
-st.markdown(f'<div class="bird bird-img fly-step-1"><img src="{bird_gif}" width="60"></div>', unsafe_allow_html=True)
-st.markdown('<div class="bird-message">🐦 Step 1: Please upload your agreement file.</div>', unsafe_allow_html=True)
-speak("Step one. Please upload your agreement file.")
+# --- Step Handler ---
+def bird_fly_and_speak(step_text, instruction_text):
+    st.markdown(f"""
+    <div class="bird fly">
+        <img src="{bird_gif}" width="90">
+    </div>
+    """, unsafe_allow_html=True)
+    speak(instruction_text)
+    st.markdown(f'<div class="bird-message">🐦 {step_text}</div>', unsafe_allow_html=True)
+    time.sleep(2.5)  # wait for bird to disappear
 
-# Wait to simulate delay
-time.sleep(2)
+# ✅ Step 1
+bird_fly_and_speak("Step 1: Please upload your agreement file.", "Step one. Please upload your agreement file.")
 
-# --- Step 2: Summary instruction ---
-st.markdown(f'<div class="bird bird-img fly-step-2"><img src="{bird_gif}" width="60"></div>', unsafe_allow_html=True)
-st.markdown('<div class="bird-message">🐦 Step 2: Generating your document summary...</div>', unsafe_allow_html=True)
-speak("Step two. Generating your document summary.")
+# ✅ Step 2
+bird_fly_and_speak("Step 2: Generating document summary.", "Step two. Generating your document summary.")
 
-# Wait
-time.sleep(2)
-
-# --- Step 3: Audio instruction ---
-st.markdown(f'<div class="bird bird-img fly-step-3"><img src="{bird_gif}" width="60"></div>', unsafe_allow_html=True)
-st.markdown('<div class="bird-message">🐦 Step 3: Click the button below to listen to the summary.</div>', unsafe_allow_html=True)
-speak("Step three. Click the button to listen to the summary.")
+# ✅ Step 3
+bird_fly_and_speak("Step 3: Click play to listen to the summary.", "Step three. Click the play button to listen.")
