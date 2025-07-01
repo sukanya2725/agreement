@@ -8,6 +8,10 @@ import tempfile
 import base64
 from rapidfuzz import fuzz
 import textwrap
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+from reportlab.lib.colors import black
 
 # ✅ No need to use st.set_option for upload size
 # Set maxUploadSize = 1000 in .streamlit/config.toml
@@ -79,8 +83,6 @@ if uploaded_file:
                         best_match = segment.strip()
         return best_match
 
-    # --- Extract key details as before (same logic) ---
-
     project_name = smart_search(text, ["project title", "name of work", "tender for"], 150)
     scope = smart_search(text, ["scope of work", "work includes", "nature of work"], 250)
     date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
@@ -107,7 +109,6 @@ if uploaded_file:
         result = smart_search(text, keys)
         clause_results.append(f"✅ {name}" if result != "Not specified" else f"❌ {name}")
 
-    # Summary
     paragraph = "This agreement"
     if parties != "Not specified":
         paragraph += f" is made between {parties}"
@@ -124,7 +125,6 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
-    # Display Summary
     st.subheader("📑 Extracted Summary")
     st.markdown(f"""
     <div style="font-size:17px; background:#f4f6f8; padding:15px; border-radius:10px">
@@ -139,7 +139,6 @@ if uploaded_file:
     </div>
     """, unsafe_allow_html=True)
 
-    # Translate if needed
     if lang == "Marathi":
         st.info("🌐 Translating to Marathi...")
         try:
@@ -154,7 +153,6 @@ if uploaded_file:
     else:
         final_text = paragraph
 
-    # Audio
     st.subheader("🎧 Audio Summary")
     try:
         max_chars = 3900
@@ -175,4 +173,35 @@ if uploaded_file:
         st.success("✅ Audio generated successfully!")
     except Exception as e:
         st.error("❌ Failed to generate audio.")
-        st.exception(e) 
+        st.exception(e)
+
+    # PDF DOWNLOAD WITH BORDER
+    summary_pdf_path = os.path.join(tempfile.gettempdir(), "agreement_summary_with_border.pdf")
+    c = canvas.Canvas(summary_pdf_path, pagesize=A4)
+    width, height = A4
+
+    c.setLineWidth(2)
+    c.setStrokeColor(black)
+    c.rect(inch / 2, inch / 2, width - inch, height - inch)
+
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(width / 2, height - 80, f"Project Title: {project_name}")
+
+    c.setFont("Helvetica", 12)
+    y = height - 120
+    for line in textwrap.wrap(paragraph, width=95):
+        c.drawString(inch, y, line)
+        y -= 16
+        if y < inch:
+            c.showPage()
+            c.setLineWidth(2)
+            c.setStrokeColor(black)
+            c.rect(inch / 2, inch / 2, width - inch, height - inch)
+            y = height - inch
+
+    c.save()
+
+    with open(summary_pdf_path, "rb") as f:
+        b64_pdf = base64.b64encode(f.read()).decode()
+        download_link = f'<a href="data:application/pdf;base64,{b64_pdf}" download="agreement_summary.pdf">📥 Download Summary PDF with Border</a>'
+        st.markdown(download_link, unsafe_allow_html=True)
