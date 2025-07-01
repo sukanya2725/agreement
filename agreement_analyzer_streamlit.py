@@ -1,54 +1,53 @@
 import streamlit as st
 import fitz  # PyMuPDF
-import os
 import re
-from gtts import gTTS
 import tempfile
 import base64
 import time
+from gtts import gTTS
 from rapidfuzz import fuzz
-import textwrap
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# ✅ Your Duolingo bird GIF (uploaded to PostImage)
+# ✅ Duolingo Bird GIF
 bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
 
-# --- CSS for styling and bird animation ---
+# --- CSS for bird movement ---
 st.markdown(f"""
 <style>
 .bird {{
     position: absolute;
     width: 90px;
     z-index: 999;
-}}
-@keyframes fly {{
-  0% {{ transform: translate(0px, 0px); opacity: 1; }}
-  100% {{ transform: translate(200px, 100px); opacity: 0; }}
-}}
-.fly {{
-    animation: fly 2s ease-in-out forwards;
+    animation-duration: 2.5s;
 }}
 
-.bird-message {{
-    margin-top: 140px;
-    padding: 12px;
-    background-color: #fff8dc;
-    border-left: 5px solid orange;
-    border-radius: 10px;
-    font-weight: bold;
-    color: #4e342e;
-    animation: fadeIn 0.5s ease-in;
+.fly-header {{
+    top: 20px; left: 30px;
 }}
 
-@keyframes fadeIn {{
-  0% {{ opacity: 0; }}
-  100% {{ opacity: 1; }}
+.fly-upload {{
+    animation-name: flyToUpload;
 }}
+
+.fly-audio {{
+    animation-name: flyToAudio;
+}}
+
+@keyframes flyToUpload {{
+  0% {{ top: 20px; left: 30px; }}
+  100% {{ top: 300px; left: 120px; }}
+}}
+
+@keyframes flyToAudio {{
+  0% {{ top: 300px; left: 120px; }}
+  100% {{ top: 680px; left: 150px; }}
+}}
+
 </style>
 """, unsafe_allow_html=True)
 
-# --- Speak function ---
+# --- Speak Function ---
 def speak(text):
     tts = gTTS(text, lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
@@ -63,33 +62,32 @@ def speak(text):
             st.markdown(audio_html, unsafe_allow_html=True)
     time.sleep(2)
 
-# --- Step-wise bird display + message + speak ---
-def bird_fly_and_speak(message_text, speak_text):
-    st.markdown(f"""
-    <div class="bird fly">
-        <img src="{bird_gif}" width="90">
-    </div>
-    """, unsafe_allow_html=True)
-    speak(speak_text)
-    st.markdown(f'<div class="bird-message">🐦 {message_text}</div>', unsafe_allow_html=True)
-    time.sleep(2.5)
+# --- App Header ---
+st.markdown("<h1 style='text-align:center; color:#2c3e50;'>📄 Agreement Analyzer</h1>", unsafe_allow_html=True)
 
-# --- Step 1: Upload instruction ---
-bird_fly_and_speak("Step 1: Please upload your agreement file.", "Step one. Please upload your agreement file.")
+# --- Bird Step 1: Welcome ---
+st.markdown(f"""<div class="bird fly-header"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
+speak("Welcome to my app")
+time.sleep(1)
+
+# --- Bird Step 2: Fly to Upload Button ---
+st.markdown(f"""<div class="bird fly-upload"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
+speak("Upload your document here")
+time.sleep(1)
+
+# --- File Upload ---
 uploaded_file = st.file_uploader("📤 Upload Agreement (PDF)", type=["pdf"])
 
 if uploaded_file:
-    # --- Step 2: Summary generation ---
-    bird_fly_and_speak("Step 2: Processing your document, please wait...", "Step two. Processing your document.")
+    speak("Thank you. Processing your document.")
 
-    # Save file temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         pdf_path = tmp_file.name
 
     doc = fitz.open(pdf_path)
     text = " ".join([page.get_text() for page in doc])
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'\s+', ' ', text)
 
     def smart_search(text, keywords):
         best = "Not specified"
@@ -134,9 +132,12 @@ if uploaded_file:
     if any(c.startswith("✅") for c in clause_results):
         paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
 
-    # --- Step 3: Summary + Audio ---
-    bird_fly_and_speak("Step 3: Here's your document summary below.", "Step three. Here is your document summary.")
+    # --- Bird Step 3: Fly to Audio Section ---
+    st.markdown(f"""<div class="bird fly-audio"><img src="{bird_gif}" width="90"></div>""", unsafe_allow_html=True)
+    speak("Here is your output. Click below to listen to summary. Thank you.")
+    time.sleep(1)
 
+    # --- Display Summary ---
     st.markdown(f"""
     <div style="background:#fff7d1;padding:1.2rem;border-radius:10px;margin-top:1rem">
         <h3 style="color:#003366">📌 Project:</h3><p>{project_name}</p>
@@ -150,7 +151,7 @@ if uploaded_file:
     </div>
     """, unsafe_allow_html=True)
 
-    speak("Click the audio button to listen to the summary.")
+    # --- Play Summary Audio ---
     tts = gTTS(paragraph[:3900], lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as audio_file:
         tts.save(audio_file.name)
