@@ -15,54 +15,6 @@ from reportlab.lib.colors import black
 
 st.set_page_config(page_title="Agreement Analyzer", layout="centered")
 
-# Bird tracking state
-if "bird_step" not in st.session_state:
-    st.session_state.bird_step = 0
-if "bird_said" not in st.session_state:
-    st.session_state.bird_said = set()
-
-# Bird speak
-
-def bird_speak_once(voice_id, message):
-    if voice_id not in st.session_state.bird_said:
-        tts = gTTS(message, lang='en')
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-            tts.save(fp.name)
-            with open(fp.name, "rb") as audio_file:
-                b64 = base64.b64encode(audio_file.read()).decode()
-                st.markdown(f"""
-                <audio autoplay>
-                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                </audio>
-                """, unsafe_allow_html=True)
-        st.session_state.bird_said.add(voice_id)
-
-# Bird position logic
-
-def get_bird_position():
-    if st.session_state.bird_step == 0:
-        return "top: 20px; left: 30px;"
-    elif st.session_state.bird_step == 1:
-        return "top: 320px; left: 10px;"
-    elif st.session_state.bird_step == 2:
-        return "top: 2600px; left: 160px;"
-    return "top: 30px; left: 30px;"
-
-bird_gif = "https://i.postimg.cc/2jtSq2gC/duolingo-meme-flying-bird-kc0czqsh6zrv6aqv.gif"
-
-st.markdown(f"""
-<style>
-.bird {{
-    position: absolute;
-    z-index: 999;
-    width: 90px;
-}}
-</style>
-<div class="bird" style="{get_bird_position()}">
-    <img src="{bird_gif}" width="90">
-</div>
-""", unsafe_allow_html=True)
-
 # --- Enhanced Custom Styling ---
 st.markdown("""
 <style>
@@ -180,47 +132,132 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- Bird speaks step 1 ---
-if st.session_state.bird_step == 0:
-    bird_speak_once("welcome", "Welcome to my app")
-    st.session_state.bird_step = 1
-
-# File uploader step
 uploaded_file = st.file_uploader("📤 Upload a PDF Agreement", type=["pdf"])
 lang = st.selectbox("🌐 Select Output Language", ["English", "Marathi"])
 
-if st.session_state.bird_step == 1:
-    bird_speak_once("upload", "Upload your document here")
-
 if uploaded_file:
-    st.session_state.bird_step = 2
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        pdf_path = tmp_file.name
 
-    # Summary section
-    summary_text = "This agreement is made on 1st July 2025 between ABC Corp and XYZ Ltd for the construction project. The scope includes full civil and electrical work. Estimated amount is ₹25,00,000 and timeline is 6 months."
-    translated_summary = GoogleTranslator(source='en', target='mr').translate(summary_text) if lang == "Marathi" else summary_text
+    doc = fitz.open(pdf_path)
+    text = " ".join([page.get_text() for page in doc])
+    text = re.sub(r'\s+', ' ', text).strip()
 
-    st.markdown(f"""
-    <div class="flip-box">
-      <div class="flip-box-inner">
-        <div class="flip-box-front">
-            <h3 style="color:#003366;">📝 Tap to View Summary</h3>
-            <p>Hover to reveal summary details.</p>
+    def smart_search(text, keywords, window=100):
+        best = "Not specified"
+        score = 0
+        segments = re.split(r'(?<=[.!?])\s+', text)
+        for keyword in keywords:
+            for segment in segments:
+                s = fuzz.partial_ratio(keyword.lower(), segment.lower())
+                if s > score and s > 70:
+                    score = s
+                    best = segment
+        return best
+
+    project_name = smart_search(text, ["project title", "name of work", "tender for"])
+    scope = smart_search(text, ["scope of work", "work includes"])
+    date_match = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', text)
+    date = date_match.group(0) if date_match else "Not specified"
+    amount_sentence = smart_search(text, ["contract value", "estimated cost"])
+    amount_match = re.search(r'(?:Rs\.?|₹)?\s*[\d,]+(?:\.\d{1,2})?', amount_sentence)
+    amount = amount_match.group(0) if amount_match else amount_sentence
+    parties = smart_search(text, ["between", "municipal corporation", "contractor"])
+    duration = smart_search(text, ["calendar months", "completion time", "within"])
+
+    clauses = {
+        "Confidentiality": ["confidentiality", "non-disclosure"],
+        "Termination": ["termination", "terminate"],
+        "Dispute Resolution": ["arbitration", "dispute"],
+        "Jurisdiction": ["jurisdiction", "court"],
+        "Force Majeure": ["force majeure"],
+        "Signatures": ["signed by", "signature"]
+    }
+
+    clause_results = [f"✅ {k}" if smart_search(text, v) != "Not specified" else f"❌ {k}" for k, v in clauses.items()]
+
+    paragraph = f"This agreement"
+    if parties != "Not specified": paragraph += f" is made between {parties}"
+    if date != "Not specified": paragraph += f" on {date}"
+    if project_name != "Not specified": paragraph += f" for the project: {project_name}"
+    if scope != "Not specified": paragraph += f", covering: {scope}"
+    if amount != "Not specified": paragraph += f". The contract value is {amount}"
+    if duration != "Not specified": paragraph += f", with a duration of {duration}."
+    if any(c.startswith("✅") for c in clause_results):
+        paragraph += " Clauses include: " + ", ".join([c[2:] for c in clause_results if c.startswith("✅")]) + "."
+
+    if lang == "Marathi":
+        st.info("🌐 Translating to Marathi...")
+        try:
+            translated_paragraph = GoogleTranslator(source='auto', target='mr').translate(paragraph[:4000])
+            translated_title = GoogleTranslator(source='auto', target='mr').translate(project_name)
+            translated_parties = GoogleTranslator(source='auto', target='mr').translate(parties)
+            translated_amount = GoogleTranslator(source='auto', target='mr').translate(amount)
+            translated_scope = GoogleTranslator(source='auto', target='mr').translate(scope)
+            translated_duration = GoogleTranslator(source='auto', target='mr').translate(duration)
+        except Exception as e:
+            st.error("❌ Marathi translation failed.")
+            st.exception(e)
+            translated_paragraph = paragraph
+            translated_title = project_name
+            translated_parties = parties
+            translated_amount = amount
+            translated_scope = scope
+            translated_duration = duration
+
+        final_text = translated_paragraph
+        st.subheader("🈯 मराठी अनुवाद")
+
+        st.markdown(f"""
+        <div class="flip-box">
+          <div class="flip-box-inner">
+            <div class="flip-box-front">
+                <h3 style="color:#003366;">📝 मराठी सारांश पहा</h3>
+                <p>Hover करा मराठी सारांश पाहण्यासाठी.</p>
+            </div>
+            <div class="flip-box-back">
+                <h3 style="color:#003366;">📋 मराठी तपशील</h3>
+                <p><b>📌 प्रकल्पाचे नाव:</b> {textwrap.fill(translated_title, 100)}</p>
+                <p><b>📅 कराराची तारीख:</b> {date}</p>
+                <p><b>👥 पक्ष:</b> {textwrap.fill(translated_parties, 100)}</p>
+                <p><b>💰 रक्कम:</b> {textwrap.fill(translated_amount, 100)}</p>
+                <p><b>📦 कामाचा व्याप:</b> {textwrap.fill(translated_scope, 100)}</p>
+                <p><b>⏱ कालावधी:</b> {translated_duration}</p>
+                <br><b>🧾 कायदेशीर अटी:</b><br>{"<br>".join(clause_results)}
+                <br><br><b>🧠 सारांश परिच्छेद:</b><br>{textwrap.fill(translated_paragraph, 100)}
+            </div>
+          </div>
         </div>
-        <div class="flip-box-back">
-            <h3 style="color:#003366;">📋 Summary Details</h3>
-            <p>{textwrap.fill(translated_summary, 100)}</p>
+        """, unsafe_allow_html=True)
+    else:
+        final_text = paragraph
+        st.markdown(f"""
+        <div class="flip-box">
+          <div class="flip-box-inner">
+            <div class="flip-box-front">
+                <h3 style="color:#003366;">📝 Tap to View Summary</h3>
+                <p>Hover to reveal summary details.</p>
+            </div>
+            <div class="flip-box-back">
+                <h3 style="color:#003366;">📋 Summary Details</h3>
+                <p><b>📌 Project Name:</b> {textwrap.fill(project_name, 100)}</p>
+                <p><b>📅 Agreement Date:</b> {date}</p>
+                <p><b>👥 Parties Involved:</b> {textwrap.fill(parties, 100)}</p>
+                <p><b>💰 Amount:</b> {textwrap.fill(amount, 100)}</p>
+                <p><b>📦 Scope of Work:</b> {textwrap.fill(scope, 100)}</p>
+                <p><b>⏱ Duration:</b> {duration}</p>
+                <br><b>🧾 Legal Clauses:</b><br>{"<br>".join(clause_results)}
+                <br><br><b>🧠 Summary Paragraph:</b><br>{textwrap.fill(paragraph, 100)}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    # --- Bird speaks after output shown ---
-    bird_speak_once("summary", "Click below to listen to the summary. Thank you")
-
-    # Audio Summary Output
+    # Audio
     st.subheader("🎧 Audio Summary")
     try:
-        tts = gTTS(translated_summary[:3900], lang='mr' if lang == "Marathi" else 'en')
+        tts = gTTS(final_text[:3900], lang='mr' if lang == "Marathi" else 'en')
         audio_path = os.path.join(tempfile.gettempdir(), "output.mp3")
         tts.save(audio_path)
         with open(audio_path, "rb") as f:
